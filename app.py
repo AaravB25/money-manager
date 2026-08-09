@@ -53,21 +53,20 @@ def get_dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT liquid_savings, spending_balance, stock_investment_budget FROM accounts WHERE id = 1")
+    cursor.execute("SELECT liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget FROM accounts WHERE id = 1")
     acc = cursor.fetchone()
     liquid_savings = acc['liquid_savings'] if acc else 0.0
     spending_balance = acc['spending_balance'] if acc else 0.0
     stock_budget = acc['stock_investment_budget'] if acc else 0.0
+    dip_fund_budget = acc['dip_fund_budget'] if acc else 0.0
     
     cursor.execute("SELECT ticker, shares, avg_cost FROM portfolio")
     holdings = [dict(row) for row in cursor.fetchall()]
     
     symbols = [h['ticker'] for h in holdings]
     if symbols:
-        missing_symbols = [s for s in symbols if s not in STOCK_CACHE]
-        if missing_symbols:
-            quotes = fetch_multiple_quotes(missing_symbols)
-            STOCK_CACHE.update(quotes)
+        quotes = fetch_multiple_quotes(symbols)
+        STOCK_CACHE.update(quotes)
             
     aud_usd_rate = fetch_aud_usd_rate()
     
@@ -89,7 +88,7 @@ def get_dashboard():
         
     total_gain_loss_aud = portfolio_value_aud - total_cost_aud
     gain_loss_pct = (total_gain_loss_aud / total_cost_aud * 100) if total_cost_aud > 0 else 0.0
-    net_worth_aud = round(liquid_savings + spending_balance + stock_budget + portfolio_value_aud, 2)
+    net_worth_aud = round(liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value_aud, 2)
     
     cursor.execute("SELECT * FROM transactions ORDER BY date DESC LIMIT 10")
     recent_transactions = [dict(row) for row in cursor.fetchall()]
@@ -104,6 +103,7 @@ def get_dashboard():
         'liquid_savings': round(liquid_savings, 2),
         'spending_balance': round(spending_balance, 2),
         'stock_investment_budget': round(stock_budget, 2),
+        'dip_fund_budget': round(dip_fund_budget, 2),
         'portfolio_value': round(portfolio_value_aud, 2),
         'total_cost': round(total_cost_aud, 2),
         'total_gain_loss': round(total_gain_loss_aud, 2),
@@ -202,6 +202,7 @@ def refresh_portfolio_prices():
     conn.close()
     
     if symbols:
+        STOCK_CACHE.clear()
         quotes = fetch_multiple_quotes(symbols)
         STOCK_CACHE.update(quotes)
         return jsonify({'success': True, 'refreshed_count': len(symbols)})
@@ -354,11 +355,12 @@ def add_income():
         SET liquid_savings = liquid_savings + ?,
             spending_balance = spending_balance + ?,
             stock_investment_budget = stock_investment_budget + ?,
+            dip_fund_budget = dip_fund_budget + ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
-    ''', (split['savings_amount'], split['spending_amount'], split['stock_allocation']))
+    ''', (split['savings_amount'], split['spending_amount'], split['active_stock_allocation'], split['dip_fund_allocation']))
     
-    audit_desc = f"[INCOME] {description}: ${amount:.2f} (Spending: +${split['spending_amount']:.2f}, Liquid Savings: +${split['savings_amount']:.2f}, Stock Budget: +${split['stock_allocation']:.2f})"
+    audit_desc = f"[INCOME] {description}: ${amount:.2f} (Spending: +${split['spending_amount']:.2f}, Savings: +${split['savings_amount']:.2f}, Stock Budget: +${split['active_stock_allocation']:.2f}, Dip Fund: +${split['dip_fund_allocation']:.2f})"
     cursor.execute('''
         INSERT INTO transactions (type, amount, description)
         VALUES ('INCOME', ?, ?)
@@ -461,11 +463,12 @@ def handle_goals():
         return jsonify({'success': True, 'message': f'Goal "{title}" created successfully.'})
         
     # GET: resolve live balances for linked goals
-    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget FROM accounts WHERE id = 1')
+    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget FROM accounts WHERE id = 1')
     acc = cursor.fetchone()
     liquid_savings = acc['liquid_savings'] if acc else 0.0
     spending_balance = acc['spending_balance'] if acc else 0.0
     stock_budget = acc['stock_investment_budget'] if acc else 0.0
+    dip_fund_budget = acc['dip_fund_budget'] if acc else 0.0
 
     # Live portfolio value
     cursor.execute('SELECT ticker, shares, avg_cost FROM portfolio')
@@ -476,12 +479,13 @@ def handle_goals():
         (1.0 if h['ticker'].endswith('.AX') else aud_usd_rate)
         for h in holdings
     )
-    net_worth = liquid_savings + spending_balance + stock_budget + portfolio_value
+    net_worth = liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value
 
     ACCOUNT_VALUES = {
         'savings': liquid_savings,
         'spending': spending_balance,
         'stock_budget': stock_budget,
+        'dip_fund': dip_fund_budget,
         'portfolio': portfolio_value,
         'net_worth': net_worth,
         'none': None

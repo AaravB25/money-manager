@@ -122,7 +122,7 @@ def transfer_funds(from_account, to_account, amount, description="Account Transf
     if amount <= 0:
         return {'success': False, 'error': 'Transfer amount must be positive'}
         
-    valid_accounts = ['savings', 'spending', 'stock_budget']
+    valid_accounts = ['savings', 'spending', 'stock_budget', 'dip_fund']
     if from_account not in valid_accounts or to_account not in valid_accounts:
         return {'success': False, 'error': 'Invalid account selection'}
         
@@ -132,7 +132,8 @@ def transfer_funds(from_account, to_account, amount, description="Account Transf
     account_column_map = {
         'savings': 'liquid_savings',
         'spending': 'spending_balance',
-        'stock_budget': 'stock_investment_budget'
+        'stock_budget': 'stock_investment_budget',
+        'dip_fund': 'dip_fund_budget'
     }
     
     conn = get_db_connection()

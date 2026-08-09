@@ -19,16 +19,22 @@ def init_db():
             liquid_savings REAL DEFAULT 0.0,
             spending_balance REAL DEFAULT 0.0,
             stock_investment_budget REAL DEFAULT 0.0,
+            dip_fund_budget REAL DEFAULT 0.0,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    try:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN dip_fund_budget REAL DEFAULT 0.0")
+    except Exception:
+        pass
     
     # Initialize default account record if empty
     cursor.execute("SELECT COUNT(*) FROM accounts")
     if cursor.fetchone()[0] == 0:
         cursor.execute('''
-            INSERT INTO accounts (id, liquid_savings, spending_balance, stock_investment_budget)
-            VALUES (1, 0.0, 0.0, 0.0)
+            INSERT INTO accounts (id, liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget)
+            VALUES (1, 0.0, 0.0, 0.0, 0.0)
         ''')
 
     # Settings table

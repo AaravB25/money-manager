@@ -117,6 +117,8 @@ function initIncomePreview() {
         const spendingAmt = pay * (spendingPct / 100);
         const savingsAmt = pay * (savingsPct / 100);
         const stockAmt = pay * (stockPct / 100);
+        const stockActiveAmt = stockAmt * 0.80;
+        const stockDipAmt = stockAmt * 0.20;
 
         const prevPay = document.getElementById('prev-pay');
         if (prevPay) prevPay.textContent = `$${pay.toFixed(2)}`;
@@ -127,8 +129,11 @@ function initIncomePreview() {
         const prevSave = document.getElementById('prev-savings');
         if (prevSave) prevSave.textContent = `$${savingsAmt.toFixed(2)}`;
 
-        const prevStock = document.getElementById('prev-stock');
-        if (prevStock) prevStock.textContent = `$${stockAmt.toFixed(2)}`;
+        const prevStockActive = document.getElementById('prev-stock-active');
+        if (prevStockActive) prevStockActive.textContent = `$${stockActiveAmt.toFixed(2)}`;
+
+        const prevStockDip = document.getElementById('prev-stock-dip');
+        if (prevStockDip) prevStockDip.textContent = `$${stockDipAmt.toFixed(2)}`;
     }
 
     if (amountInput) amountInput.addEventListener('input', updatePreview);
@@ -156,6 +161,9 @@ async function loadDashboard() {
         const budgetEl = document.getElementById('dash-stock-budget');
         if (budgetEl) budgetEl.textContent = `$${data.stock_investment_budget.toFixed(2)}`;
 
+        const dipEl = document.getElementById('dash-dip-budget');
+        if (dipEl) dipEl.textContent = `$${data.dip_fund_budget.toFixed(2)}`;
+
         const portValEl = document.getElementById('dash-portfolio-val');
         if (portValEl) portValEl.textContent = `$${data.portfolio_value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
@@ -172,11 +180,32 @@ async function loadDashboard() {
         const holdingsCountEl = document.getElementById('dash-holdings-count');
         if (holdingsCountEl) holdingsCountEl.textContent = `${data.holdings_count} Holdings`;
 
-        renderNetWorthDonut(data.liquid_savings, data.portfolio_value, data.spending_balance, data.stock_investment_budget);
+        renderNetWorthDonut(data.liquid_savings, data.portfolio_value, data.spending_balance, data.stock_investment_budget, data.dip_fund_budget);
         renderRecentActivity(data.recent_transactions);
         renderDashboardGoals();
     } catch (err) {
         console.error('Failed to load dashboard data:', err);
+    }
+}
+
+async function refreshStockPrices() {
+    const btnTab = document.getElementById('btn-refresh-prices-tab');
+    const btnMain = document.getElementById('btn-refresh-prices');
+    if (btnTab) { btnTab.disabled = true; btnTab.textContent = 'Refreshing...'; }
+    if (btnMain) { btnMain.disabled = true; btnMain.textContent = 'Refreshing...'; }
+
+    try {
+        const res = await fetch('/api/portfolio/refresh', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            await loadPortfolio();
+            await loadDashboard();
+        }
+    } catch (err) {
+        console.error('Failed to refresh stock prices:', err);
+    } finally {
+        if (btnTab) { btnTab.disabled = false; btnTab.textContent = 'Refresh Prices'; }
+        if (btnMain) { btnMain.disabled = false; btnMain.textContent = 'Refresh Prices'; }
     }
 }
 
@@ -259,7 +288,7 @@ async function refreshStockPrices() {
 }
 
 // Donut Chart
-function renderNetWorthDonut(savings, portfolio, spending, stockBudget) {
+function renderNetWorthDonut(savings, portfolio, spending, stockBudget, dipBudget) {
     const canvas = document.getElementById('chart-net-worth-donut');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -268,10 +297,10 @@ function renderNetWorthDonut(savings, portfolio, spending, stockBudget) {
     netWorthDonutChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Liquid Savings', 'Stock Portfolio', 'Spending Cash', 'Stock Budget'],
+            labels: ['Liquid Savings', 'Stock Portfolio', 'Spending Cash', 'Active Stock Budget', 'Market Dip Reserve'],
             datasets: [{
-                data: [savings, portfolio, spending, stockBudget],
-                backgroundColor: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b'],
+                data: [savings, portfolio, spending, stockBudget, dipBudget || 0],
+                backgroundColor: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4'],
                 borderWidth: 0
             }]
         },

@@ -1,5 +1,6 @@
 import yfinance as yf
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,24 +19,27 @@ def fetch_aud_usd_rate():
 
 def fetch_stock_quote(symbol):
     """
-    Fetches quote for symbol via yfinance.
+    Fetches live / latest trading day quote for symbol via yfinance.
     """
     clean_symbol = symbol.strip().upper()
     try:
         ticker = yf.Ticker(clean_symbol)
         info = ticker.fast_info
         
-        current_price = getattr(info, 'last_price', None)
-        prev_close = getattr(info, 'previous_close', None)
+        current_price = getattr(info, 'last_price', None) or getattr(info, 'regular_market_price', None)
+        prev_close = getattr(info, 'previous_close', None) or getattr(info, 'regular_market_previous_close', None)
         currency = getattr(info, 'currency', 'AUD' if clean_symbol.endswith('.AX') else 'USD')
-        
-        if current_price is None or current_price == 0:
-            hist = ticker.history(period="2d")
-            if not hist.empty:
-                current_price = float(hist['Close'].iloc[-1])
-                prev_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
 
-        if current_price is None:
+        # Fallback to history for recent close if fast_info missing or invalid
+        if current_price is None or current_price == 0 or prev_close is None:
+            hist = ticker.history(period="5d")
+            if not hist.empty:
+                if current_price is None or current_price == 0:
+                    current_price = float(hist['Close'].iloc[-1])
+                if prev_close is None or prev_close == 0:
+                    prev_close = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_price
+
+        if current_price is None or current_price == 0:
             return {'symbol': clean_symbol, 'valid': False, 'error': 'Price not found'}
 
         change = (current_price - prev_close) if prev_close else 0.0
@@ -62,8 +66,17 @@ def fetch_stock_quote(symbol):
         }
 
 def fetch_multiple_quotes(symbols):
+    clean_symbols = list(set([s.strip().upper() for s in symbols if s]))
+    if not clean_symbols:
+        return {}
+    
     results = {}
-    for sym in set(symbols):
-        if sym:
-            results[sym.strip().upper()] = fetch_stock_quote(sym)
+    with ThreadPoolExecutor(max_workers=min(10, len(clean_symbols))) as executor:
+        future_to_symbol = {executor.submit(fetch_stock_quote, sym): sym for sym in clean_symbols}
+        for future in future_to_symbol:
+            sym = future_to_symbol[future]
+            try:
+                results[sym] = future.result()
+            except Exception as e:
+                logging.error(f"Error fetching {sym} in thread: {e}")
     return results
