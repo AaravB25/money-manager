@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Manager - Wealth & Portfolio Dashboard</title>
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ build_ts }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </div>
+                    <div class="brand-text">
+                        <h2>Money Manager</h2>
+                        <span class="badge badge-pro">Wealth Hub</span>
+                    </div>
+                </div>
+
+                <nav class="nav-menu">
+                    <button class="nav-item active" data-tab="overview">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        Overview Dashboard
+                    </button>
+                    <button class="nav-item" data-tab="income">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                        Income Split Logger
+                    </button>
+                    <button class="nav-item" data-tab="spending">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                        Spending & Transfers
+                    </button>
+                    <button class="nav-item" data-tab="portfolio">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        Stock Portfolio
+                    </button>
+                    <button class="nav-item" data-tab="projections">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Projections & Calculator
+                    </button>
+                    <button class="nav-item" data-tab="goals">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        Goals & Progress
+                    </button>
+                    <button class="nav-item" data-tab="history">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Transaction Log
+                    </button>
+                    <button class="nav-item" data-tab="planner">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>
+                        Wealth Planner
+                    </button>
+                </nav>
+            </div>
+
+            <div class="sidebar-footer">
+                <a href="/api/export" class="btn btn-secondary btn-full">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Export CSV Data
+                </a>
+            </div>
+        </aside>
+
+        <!-- Right Main Content Area -->
+        <main class="main-content">
+
+            <!-- TAB 1: OVERVIEW DASHBOARD -->
+            <section id="tab-overview" class="tab-pane active">
+                <header class="content-header">
+                    <div>
+                        <h1>Financial Overview</h1>
+                        <p class="subtitle">Real-time status of your net worth, savings, spending cash, and stock investments.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="btn-quick-income" class="btn btn-primary">Log Paycheck</button>
+                    </div>
+                </header>
+
+                <!-- Hero Net Worth Card -->
+                <div class="hero-card">
+                    <div class="hero-content">
+                        <span class="hero-label">TOTAL NET WORTH (AUD)</span>
+                        <h2 class="hero-value" id="dash-net-worth">$0.00</h2>
+                        <div class="hero-meta">
+                            <span class="hero-subtext">Liquid Savings + Stocks + Spending Cash</span>
+                        </div>
+                    </div>
+                    <div class="hero-chart-container">
+                        <canvas id="chart-net-worth-donut"></canvas>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="card metric-card border-blue">
+                        <div class="card-header">
+                            <span class="metric-title">Liquid Savings</span>
+                            <span class="badge badge-info">40% Split Target</span>
+                        </div>
+                        <div class="metric-value" id="dash-savings">$306.34</div>
+                        <p class="metric-footer">Liquid cash reserve</p>
+                    </div>
+
+                    <div class="card metric-card border-purple">
+                        <div class="card-header">
+                            <span class="metric-title">Stock Portfolio</span>
+                            <span class="badge badge-accent" id="dash-holdings-count">10 Holdings</span>
+                        </div>
+                        <div class="metric-value" id="dash-portfolio-val">$0.00</div>
+                        <p class="metric-footer" id="dash-portfolio-gain">Gain/Loss: $0.00 (0.00%)</p>
+                    </div>
+
+                    <div class="card metric-card border-green">
+                        <div class="card-header">
+                            <span class="metric-title">Spending Account</span>
+                            <span class="badge badge-success">10% Split</span>
+                        </div>
+                        <div class="metric-value" id="dash-spending">$108.02</div>
+                        <p class="metric-footer">Available spending cash</p>
+                    </div>
+
+                    <div class="card metric-card border-orange">
+                        <div class="card-header">
+                            <span class="metric-title">Stock Target Budget</span>
+                            <span class="badge badge-warning">50% Split</span>
+                        </div>
+                        <div class="metric-value" id="dash-stock-budget">$0.00</div>
+                        <p class="metric-footer">Allocated from paychecks for stocks</p>
+                    </div>
+                </div>
+
+                <!-- Recent Activity & Goals summary -->
+                <div class="dashboard-row margin-top-lg">
+                    <div class="card card-wide">
+                        <div class="card-header">
+                            <h3>Active Goal Progress</h3>
+                            <button class="btn btn-sm btn-secondary" onclick="switchTab('goals')">View Goals</button>
+                        </div>
+                        <div id="dash-goals-list" class="goals-progress-list">
+                            <p class="text-muted">No goals created yet. Visit Goals tab to set targets.</p>
+                        </div>
+                    </div>
+
+                    <div class="card card-narrow">
+                        <div class="card-header">
+                            <h3>Recent Activity</h3>
+                        </div>
+                        <div id="dash-recent-txs" class="activity-feed">
+                            <p class="text-muted">No recent activity.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: INCOME SPLIT LOGGER -->
+            <section id="tab-income" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Income & Paycheck Splitter</h1>
+                        <p class="subtitle">Log income with automated 10% spending, 40% liquid savings, and 50% stock budget splits.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2-col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Record New Income</h3>
+                        </div>
+                        <form id="form-income">
+                            <div class="form-group">
+                                <label for="income-desc">Description</label>
+                                <input type="text" id="income-desc" class="form-input" placeholder="e.g. Fortnightly Paycheck" value="Fortnightly Paycheck" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="income-amount">Income Amount ($)</label>
+                                <input type="number" step="0.01" id="income-amount" class="form-input" placeholder="950.00" value="950.00" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="income-spending-pct">Spending Split (%)</label>
+                                    <input type="number" step="1" id="income-spending-pct" class="form-input" value="10">
+                                </div>
+                                <div class="form-group">
+                                    <label for="income-savings-pct">Liquid Savings (%)</label>
+                                    <input type="number" step="1" id="income-savings-pct" class="form-input" value="40">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="income-stock-pct">Stock Investment Budget (%)</label>
+                                <input type="number" step="1" id="income-stock-pct" class="form-input" value="50" readonly>
+                                <small class="form-hint">Automatically allocated for your Stake stock purchases (50%).</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-full">Process Paycheck & Split</button>
+                        </form>
+                    </div>
+
+                    <!-- Split Calculator Preview Card -->
+                    <div class="card preview-card">
+                        <div class="card-header">
+                            <h3>Pay Breakdown Preview</h3>
+                            <span class="badge badge-info">Calculated Split</span>
+                        </div>
+                        <div class="split-preview-details">
+                            <div class="split-item">
+                                <span class="split-label">Total Pay</span>
+                                <span class="split-amount" id="prev-pay">$950.00</span>
+                            </div>
+                            <hr class="divider">
+                            <div class="split-item text-green">
+                                <span class="split-label">Spending Account (10%)</span>
+                                <span class="split-amount" id="prev-spending">$95.00</span>
+                            </div>
+                            <div class="split-item text-blue">
+                                <span class="split-label">Liquid Savings (40%)</span>
+                                <span class="split-amount" id="prev-savings">$380.00</span>
+                            </div>
+                            <div class="split-item text-orange">
+                                <span class="split-label">Stock Investment Budget (50%)</span>
+                                <span class="split-amount" id="prev-stock">$475.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: SPENDING & TRANSFERS -->
+            <section id="tab-spending" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Spending & Account Transfers</h1>
+                        <p class="subtitle">Friction-free spending balance sync, quick expense deducts, and inter-account transfers.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2-col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Spending Balance Sync</h3>
+                            <span class="badge badge-warning">Current: <span id="sync-current-bal">$108.02</span></span>
+                        </div>
+                        <p class="card-desc">Type what you currently have left in spending cash without logging receipts:</p>
+                        
+                        <form id="form-spending-sync">
+                            <div class="form-group">
+                                <label for="sync-new-balance">Current Spending Cash Remaining ($)</label>
+                                <input type="number" step="0.01" id="sync-new-balance" class="form-input" placeholder="e.g. 108.02" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="sync-desc">Reason / Note</label>
+                                <input type="text" id="sync-desc" class="form-input" value="Spending Balance Adjustment">
+                            </div>
+                            <button type="submit" class="btn btn-warning btn-full">Sync Spending Balance</button>
+                        </form>
+
+                        <hr class="divider margin-top-lg">
+
+                        <h4>Quick Deduct Presets</h4>
+                        <div class="quick-preset-buttons">
+                            <button class="btn btn-secondary btn-preset" onclick="quickDeduct(10, 'Coffee/Lunch')">-$10</button>
+                            <button class="btn btn-secondary btn-preset" onclick="quickDeduct(25, 'Groceries')">-$25</button>
+                            <button class="btn btn-secondary btn-preset" onclick="quickDeduct(50, 'Outing/Fuel')">-$50</button>
+                            <button class="btn btn-secondary btn-preset" onclick="quickDeduct(100, 'Bills')">-$100</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Inter-Account Transfer Desk</h3>
+                        </div>
+                        <form id="form-transfer">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="transfer-from">From Account</label>
+                                    <select id="transfer-from" class="form-input">
+                                        <option value="savings">Liquid Savings ($306.34)</option>
+                                        <option value="spending">Spending Account ($108.02)</option>
+                                        <option value="stock_budget">Stock Investment Budget</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="transfer-to">To Account</label>
+                                    <select id="transfer-to" class="form-input">
+                                        <option value="stock_budget">Stock Investment Budget (Stake Transfer)</option>
+                                        <option value="spending">Spending Account</option>
+                                        <option value="savings">Liquid Savings</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="transfer-amount">Amount ($)</label>
+                                <input type="number" step="0.01" id="transfer-amount" class="form-input" placeholder="50.00" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="transfer-desc">Transfer Description</label>
+                                <input type="text" id="transfer-desc" class="form-input" value="Stake Stock Transfer">
+                            </div>
+                            <button type="submit" class="btn btn-secondary btn-full">Execute Transfer</button>
+                        </form>
+
+                        <hr class="divider margin-top-lg">
+
+                        <h4>Emergency Savings Withdrawal</h4>
+                        <form id="form-savings-withdraw">
+                            <div class="form-group">
+                                <label for="withdraw-amount">Amount ($)</label>
+                                <input type="number" step="0.01" id="withdraw-amount" class="form-input" placeholder="100.00" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="withdraw-desc">Reason (e.g. Car repair)</label>
+                                <input type="text" id="withdraw-desc" class="form-input" placeholder="Emergency expense" required>
+                            </div>
+                            <button type="submit" class="btn btn-danger btn-full">Withdraw from Savings</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: STOCK PORTFOLIO -->
+            <section id="tab-portfolio" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Stock Portfolio & Live Tracker</h1>
+                        <p class="subtitle">Track live stock market valuations for your 10 Stake holdings.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="btn-refresh-prices-tab" class="btn btn-secondary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            Refresh Prices
+                        </button>
+                        <button id="btn-add-holding-tab" class="btn btn-primary">+ Add Stock Holding</button>
+                    </div>
+                </header>
+
+                <div class="metrics-grid">
+                    <div class="card metric-card">
+                        <span class="metric-title">Portfolio Market Value (AUD)</span>
+                        <div class="metric-value" id="port-total-value">$0.00</div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="metric-title">Total Cost Basis (AUD)</span>
+                        <div class="metric-value" id="port-total-cost">$0.00</div>
+                    </div>
+                    <div class="card metric-card">
+                        <span class="metric-title">Total Return (AUD)</span>
+                        <div class="metric-value" id="port-total-gain">$0.00</div>
+                    </div>
+                </div>
+
+                <div class="card margin-top-lg">
+                    <div class="card-header">
+                        <h3>Stock Holdings Table</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Asset Name</th>
+                                    <th>Shares</th>
+                                    <th>Avg Cost</th>
+                                    <th>Live Price</th>
+                                    <th>Market Value</th>
+                                    <th>Day Change</th>
+                                    <th>Total Return ($ & %)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-portfolio-body">
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted">Loading holdings data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: PROJECTIONS & CALCULATOR -->
+            <section id="tab-projections" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Projections & Compound Growth Calculator</h1>
+                        <p class="subtitle">Forecast your future net worth trajectory and model compound returns over 1 to 30 years.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2-col">
+                    <!-- Personalized Net Worth Forecast -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Personalized Net Worth Forecast</h3>
+                        </div>
+                        <form id="form-projection">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="proj-pay-amount">Average Paycheck ($)</label>
+                                    <input type="number" step="10" id="proj-pay-amount" class="form-input" value="950.00" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="proj-pay-freq">Frequency</label>
+                                    <select id="proj-pay-freq" class="form-input">
+                                        <option value="fortnightly">Fortnightly (26/yr)</option>
+                                        <option value="weekly">Weekly (52/yr)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="proj-stock-return">Stock Return (%/yr)</label>
+                                    <input type="number" step="0.5" id="proj-stock-return" class="form-input" value="8.0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="proj-savings-return">Savings Rate (%/yr)</label>
+                                    <input type="number" step="0.5" id="proj-savings-return" class="form-input" value="4.0">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="proj-years">Years</label>
+                                <input type="number" id="proj-years" class="form-input" value="10" min="1" max="30">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-full">Run Net Worth Simulation</button>
+                        </form>
+
+                        <div class="projection-stats margin-top-md">
+                            <div class="stat-box">
+                                <span>Year 1 Net Worth</span>
+                                <h4 id="proj-result-yr1" class="text-blue">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Year 5 Net Worth</span>
+                                <h4 id="proj-result-yr5" class="text-purple">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Target Value</span>
+                                <h3 id="proj-result-final" class="text-green">$0.00</h3>
+                            </div>
+                        </div>
+
+                        <div class="chart-container margin-top-md">
+                            <canvas id="chart-projection"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Compound Interest Calculator -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Compound Interest Calculator</h3>
+                        </div>
+                        <form id="form-compound">
+                            <div class="form-group">
+                                <label for="comp-initial">Initial Investment ($)</label>
+                                <input type="number" id="comp-initial" class="form-input" value="1000">
+                            </div>
+                            <div class="form-group">
+                                <label for="comp-monthly">Monthly Contribution ($)</label>
+                                <input type="number" id="comp-monthly" class="form-input" value="500">
+                            </div>
+                            <div class="form-group">
+                                <label for="comp-rate">Annual Interest Rate (%)</label>
+                                <input type="number" step="0.5" id="comp-rate" class="form-input" value="8.0">
+                            </div>
+                            <div class="form-group">
+                                <label for="comp-years">Investment Duration (Years)</label>
+                                <input type="number" id="comp-years" class="form-input" value="10" min="1" max="30">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-full">Calculate Compound Growth</button>
+                        </form>
+
+                        <div class="projection-stats margin-top-md">
+                            <div class="stat-box">
+                                <span>Future Value</span>
+                                <h3 id="comp-result-final" class="text-green">$0.00</h3>
+                            </div>
+                            <div class="stat-box">
+                                <span>Contributions</span>
+                                <h4 id="comp-result-contrib">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Interest Earned</span>
+                                <h4 id="comp-result-interest" class="text-blue">$0.00</h4>
+                            </div>
+                        </div>
+
+                        <div class="chart-container margin-top-md">
+                            <canvas id="chart-compound"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: GOALS & PROGRESS -->
+            <section id="tab-goals" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Financial Goals & Milestones</h1>
+                        <p class="subtitle">Set savings or portfolio targets with visual progress bars.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="btn-add-goal" class="btn btn-primary">+ Add New Goal</button>
+                    </div>
+                </header>
+
+                <div id="goals-grid" class="goals-grid">
+                    <p class="text-muted">No goals created yet. Click "+ Add New Goal" to set a target.</p>
+                </div>
+            </section>
+
+            <!-- TAB 7: TRANSACTION LOG -->
+            <section id="tab-history" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Transaction Audit History</h1>
+                        <p class="subtitle">Chronological record of paychecks, spending syncs, transfers, and trades.</p>
+                    </div>
+                </header>
+
+                <div class="card">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Details</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-history-body">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">No transactions recorded yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 8: WEALTH PLANNER -->
+            <section id="tab-planner" class="tab-pane">
+                <header class="content-header">
+                    <div>
+                        <h1>Wealth Planner</h1>
+                        <p class="subtitle">Map your entire financial future -- salary changes, properties, investments, and major expenses on a life timeline.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="btn-run-plan" class="btn btn-primary">Run Simulation</button>
+                    </div>
+                </header>
+
+                <div class="planner-layout">
+                    <!-- Left: Config -->
+                    <div class="planner-config">
+                        <div class="card">
+                            <div class="card-header"><h3>Base Configuration</h3></div>
+                            <div class="form-group">
+                                <label for="plan-pay">Fortnightly Pay ($)</label>
+                                <input type="number" id="plan-pay" class="form-input" value="950" step="50">
+                            </div>
+                            <div class="form-group">
+                                <label for="plan-freq">Pay Frequency</label>
+                                <select id="plan-freq" class="form-input">
+                                    <option value="fortnightly">Fortnightly (26/yr)</option>
+                                    <option value="weekly">Weekly (52/yr)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Pay Split</label>
+                                <div class="form-row">
+                                    <div>
+                                        <label for="plan-spending-pct" style="font-size:0.76rem;">Spending %</label>
+                                        <input type="number" id="plan-spending-pct" class="form-input" value="10" step="5">
+                                    </div>
+                                    <div>
+                                        <label for="plan-savings-pct" style="font-size:0.76rem;">Savings %</label>
+                                        <input type="number" id="plan-savings-pct" class="form-input" value="40" step="5">
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top:0.5rem;">
+                                    <div>
+                                        <label for="plan-stock-pct" style="font-size:0.76rem;">Stock Budget %</label>
+                                        <input type="number" id="plan-stock-pct" class="form-input" value="50" step="5">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="plan-stock-return">Stock Return (%/yr)</label>
+                                    <input type="number" step="0.5" id="plan-stock-return" class="form-input" value="8">
+                                </div>
+                                <div class="form-group">
+                                    <label for="plan-savings-return">Savings Rate (%/yr)</label>
+                                    <input type="number" step="0.5" id="plan-savings-return" class="form-input" value="4.5">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="plan-dividend-yield">Dividend Reinvest (%/yr)</label>
+                                    <input type="number" step="0.5" id="plan-dividend-yield" class="form-input" value="2">
+                                </div>
+                                <div class="form-group">
+                                    <label for="plan-inflation">Inflation (%/yr)</label>
+                                    <input type="number" step="0.5" id="plan-inflation" class="form-input" value="3">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="plan-super-pct">Employer Super (%)</label>
+                                    <input type="number" step="0.5" id="plan-super-pct" class="form-input" value="11.5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="plan-super-return">Super Return (%/yr)</label>
+                                    <input type="number" step="0.5" id="plan-super-return" class="form-input" value="7">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="plan-years">Plan Duration (Years)</label>
+                                <input type="number" id="plan-years" class="form-input" value="30" min="1" max="50">
+                            </div>
+                        </div>
+
+                        <!-- Add Event Form -->
+                        <div class="card" style="margin-top:1rem;">
+                            <div class="card-header"><h3>Add Life Event</h3></div>
+                            <div class="form-group">
+                                <label for="event-type">Event Type</label>
+                                <select id="event-type" class="form-input" onchange="updateEventForm()">
+                                    <option value="salary_change">Salary Change</option>
+                                    <option value="property_buy">Buy Property</option>
+                                    <option value="property_sell">Sell Property</option>
+                                    <option value="loan_refinance">Refinance Loan</option>
+                                    <option value="lump_invest">Lump Sum Investment</option>
+                                    <option value="lump_sell">Sell Stocks (Lump Sum)</option>
+                                    <option value="major_expense">Major Expense</option>
+                                    <option value="windfall">Windfall / Bonus</option>
+                                    <option value="career_break">Career Break</option>
+                                    <option value="split_change">Change Pay Splits</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="event-year">At Year</label>
+                                    <input type="number" id="event-year" class="form-input" value="1" min="0" max="49">
+                                </div>
+                                <div class="form-group">
+                                    <label for="event-month">Month</label>
+                                    <input type="number" id="event-month" class="form-input" value="1" min="1" max="12">
+                                </div>
+                            </div>
+
+                            <!-- Dynamic event fields -->
+                            <div id="event-fields-salary_change">
+                                <div class="form-group">
+                                    <label for="ev-salary">New Fortnightly Pay ($)</label>
+                                    <input type="number" id="ev-salary" class="form-input" value="1200" step="50">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-property_buy" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-prop-label">Property Label</label>
+                                    <input type="text" id="ev-prop-label" class="form-input" value="Home">
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ev-price">Purchase Price ($)</label>
+                                        <input type="number" id="ev-price" class="form-input" value="600000" step="10000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ev-deposit">Deposit (%)</label>
+                                        <input type="number" id="ev-deposit" class="form-input" value="20" step="5">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ev-rate">Mortgage Rate (%/yr)</label>
+                                        <input type="number" id="ev-rate" class="form-input" value="5.5" step="0.1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ev-term">Loan Term (Yrs)</label>
+                                        <input type="number" id="ev-term" class="form-input" value="30" step="5">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ev-appreciation">Annual Appreciation (%)</label>
+                                        <input type="number" id="ev-appreciation" class="form-input" value="5" step="0.5">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ev-rental-yield">Rental Yield (%/yr, 0 = owner-occupied)</label>
+                                        <input type="number" id="ev-rental-yield" class="form-input" value="0" step="0.5">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="event-fields-property_sell" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-sell-prop-id">Property # (0-indexed from buy order)</label>
+                                    <input type="number" id="ev-sell-prop-id" class="form-input" value="0" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ev-sell-price">Override Sell Price ($, blank = use projected value)</label>
+                                    <input type="number" id="ev-sell-price" class="form-input" placeholder="Leave blank for auto">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-lump_invest" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-invest-amount">Amount to Invest ($)</label>
+                                    <input type="number" id="ev-invest-amount" class="form-input" value="5000" step="500">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-lump_sell" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-sell-amount">Amount to Liquidate ($)</label>
+                                    <input type="number" id="ev-sell-amount" class="form-input" value="5000" step="500">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-major_expense" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-expense-label">Description</label>
+                                    <input type="text" id="ev-expense-label" class="form-input" value="Car Purchase">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ev-expense-amount">Amount ($)</label>
+                                    <input type="number" id="ev-expense-amount" class="form-input" value="20000" step="1000">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-split_change" style="display:none;">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ev-split-spend">Spending %</label>
+                                        <input type="number" id="ev-split-spend" class="form-input" value="10">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ev-split-save">Savings %</label>
+                                        <input type="number" id="ev-split-save" class="form-input" value="40">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ev-split-stock">Stock %</label>
+                                    <input type="number" id="ev-split-stock" class="form-input" value="50">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-loan_refinance" style="display:none;">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ev-refi-prop-id">Property # (0-indexed)</label>
+                                        <input type="number" id="ev-refi-prop-id" class="form-input" value="0" min="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ev-refi-rate">New Rate (%/yr)</label>
+                                        <input type="number" id="ev-refi-rate" class="form-input" value="4.5" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="event-fields-career_break" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-break-months">Duration (Months of no pay)</label>
+                                    <input type="number" id="ev-break-months" class="form-input" value="6" min="1" max="60">
+                                </div>
+                            </div>
+
+                            <div id="event-fields-windfall" style="display:none;">
+                                <div class="form-group">
+                                    <label for="ev-windfall-source">Source / Description</label>
+                                    <input type="text" id="ev-windfall-source" class="form-input" value="Inheritance">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ev-windfall-amount">Amount ($)</label>
+                                    <input type="number" id="ev-windfall-amount" class="form-input" value="50000" step="5000">
+                                </div>
+                            </div>
+
+                            <button class="btn btn-secondary btn-full" onclick="addPlanEvent()">+ Add Event to Timeline</button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Timeline + Results -->
+                    <div class="planner-results">
+                        <!-- Events Timeline -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Life Events Timeline</h3>
+                                <span class="badge badge-info" id="plan-event-count">0 events</span>
+                            </div>
+                            <div id="plan-events-list">
+                                <p class="text-muted" style="font-size:0.88rem;">No events added. Add events from the left panel to model salary changes, property purchases, and more.</p>
+                            </div>
+                        </div>
+
+                        <!-- Milestone Cards -->
+                        <div class="projection-stats margin-top-md" id="plan-milestones" style="display:none;">
+                            <div class="stat-box">
+                                <span>Year 1</span>
+                                <h4 id="plan-yr1" class="text-blue">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Year 5</span>
+                                <h4 id="plan-yr5" class="text-purple">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Year 10</span>
+                                <h4 id="plan-yr10" class="text-orange">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Year 20</span>
+                                <h4 id="plan-yr20" class="text-cyan">$0.00</h4>
+                            </div>
+                            <div class="stat-box">
+                                <span>Final (Nominal)</span>
+                                <h3 id="plan-final" class="text-green">$0.00</h3>
+                            </div>
+                            <div class="stat-box">
+                                <span>Final (Real, Today's $)</span>
+                                <h3 id="plan-final-real" class="text-rose">$0.00</h3>
+                            </div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="card margin-top-md" id="plan-chart-card" style="display:none;">
+                            <div class="card-header"><h3>Net Worth Trajectory</h3></div>
+                            <div class="chart-container" style="height:300px;">
+                                <canvas id="chart-wealth-plan"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Year-by-year table -->
+                        <div class="card margin-top-md" id="plan-table-card" style="display:none;">
+                            <div class="card-header"><h3>Year-by-Year Breakdown</h3></div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Year</th>
+                                            <th>Net Worth</th>
+                                            <th>Real NW (Today's $)</th>
+                                            <th>Savings</th>
+                                            <th>Portfolio</th>
+                                            <th>Property Equity</th>
+                                            <th>Super</th>
+                                            <th>Pay/Fortnight</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="plan-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modal-add-holding" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Add Stock Position</h3>
+                <button class="modal-close" onclick="closeModal('modal-add-holding')">&times;</button>
+            </div>
+            <form id="form-add-holding">
+                <div class="form-group">
+                    <label for="hold-ticker">Stock Symbol / Ticker</label>
+                    <input type="text" id="hold-ticker" class="form-input" placeholder="e.g. CBA.AX, IVV.AX, TSLA, AAPL" required>
+                </div>
+                <div class="form-group">
+                    <label for="hold-shares">Number of Shares</label>
+                    <input type="number" step="0.0001" id="hold-shares" class="form-input" placeholder="10.0" required>
+                </div>
+                <div class="form-group">
+                    <label for="hold-cost">Average Cost Basis ($)</label>
+                    <input type="number" step="0.01" id="hold-cost" class="form-input" placeholder="160.45" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-holding')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Holding</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-trade" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="trade-modal-title">Trade Stock</h3>
+                <button class="modal-close" onclick="closeModal('modal-trade')">&times;</button>
+            </div>
+            <form id="form-trade">
+                <input type="hidden" id="trade-action" value="BUY">
+                <div class="form-group">
+                    <label for="trade-ticker">Ticker</label>
+                    <input type="text" id="trade-ticker" class="form-input" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="trade-shares">Quantity of Shares</label>
+                    <input type="number" step="0.0001" id="trade-shares" class="form-input" value="1.0" required>
+                </div>
+                <div class="form-group">
+                    <label for="trade-price">Price per Share ($)</label>
+                    <input type="number" step="0.01" id="trade-price" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label>Total Trade Value</label>
+                    <div id="trade-total-display" class="total-display">$0.00</div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-trade')">Cancel</button>
+                    <button type="submit" id="btn-submit-trade" class="btn btn-primary">Confirm Trade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-add-goal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Set Financial Goal</h3>
+                <button class="modal-close" onclick="closeModal('modal-add-goal')">&times;</button>
+            </div>
+            <form id="form-add-goal">
+                <div class="form-group">
+                    <label for="goal-title">Goal Title</label>
+                    <input type="text" id="goal-title" class="form-input" placeholder="e.g. Emergency Fund" required>
+                </div>
+                <div class="form-group">
+                    <label for="goal-target">Target Amount ($)</label>
+                    <input type="number" step="0.01" id="goal-target" class="form-input" placeholder="5000.00" required>
+                </div>
+                <div class="form-group">
+                    <label for="goal-linked">Link to Account (auto-tracks real balance)</label>
+                    <select id="goal-linked" class="form-input" onchange="updateGoalCurrentVisibility()">
+                        <option value="none">Manual (enter amount below)</option>
+                        <option value="savings">Liquid Savings Account</option>
+                        <option value="spending">Spending Account</option>
+                        <option value="portfolio">Stock Portfolio Value</option>
+                        <option value="stock_budget">Stock Budget Balance</option>
+                        <option value="net_worth">Total Net Worth</option>
+                    </select>
+                    <small class="form-hint">Linked goals always show your live account balance as progress.</small>
+                </div>
+                <div class="form-group" id="goal-current-group">
+                    <label for="goal-current">Current Progress ($)</label>
+                    <input type="number" step="0.01" id="goal-current" class="form-input" value="0.00">
+                </div>
+                <div class="form-group">
+                    <label for="goal-category">Category</label>
+                    <select id="goal-category" class="form-input">
+                        <option value="Savings">Savings</option>
+                        <option value="Portfolio">Stock Portfolio</option>
+                        <option value="NetWorth">Total Net Worth</option>
+                        <option value="Spending">Spending Limit</option>
+                        <option value="Property">Property</option>
+                        <option value="Custom">Custom</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-goal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Goal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js?v={{ build_ts }}"></script>
+</body>
+</html>
