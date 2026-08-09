@@ -4,11 +4,14 @@ A web-based personal finance, wealth simulation, and portfolio management dashbo
 
 ## Features
 
-- **Overview Dashboard**: Net worth breakdown, liquid savings, stock portfolio, spending cash, and stock target budget.
-- **Paycheck Splitter**: Automatically splits income into Spending (10%), Liquid Savings (40%), and Stock Investment Budget (50%).
-- **Stock Portfolio Tracker**: Real-time market prices via `yfinance` supporting ASX and US market assets.
-- **Goals & Milestone Tracker**: Define custom goals or link directly to live balances (Savings, Portfolio, Net Worth, etc.).
-- **Projections & Compound Calculator**: Long-term net worth compound trajectory modeling.
+- **Overview Dashboard**: Net worth breakdown, liquid savings, stock portfolio, spending cash, active stock budget, and market dip reserve.
+- **Paycheck Splitter**: Automatically splits income into Spending (10%), Liquid Savings (40%), and Stock Investment (50% — sub-split into 80% Active Stock Buying + 20% Market Dip Reserve).
+- **Stock Portfolio Tracker**: Real-time market prices via parallel `yfinance` queries supporting ASX and US market assets.
+- **Watchlist & Market Dip Trigger Alerts**: Monitor any stock or ETF (owned or unowned). Calculates automated dip buy deployment from your Market Dip Reserve when prices dip below target.
+- **1-Click ETF Purchase Allocator**: Enter target weighting percentages to calculate exact share quantities to buy with your active stock budget.
+- **Dividend Cashflow Tracker**: Displays estimated monthly and annual passive dividend income across your stock portfolio.
+- **Net Worth Milestone Tracker**: Progress tracking toward major wealth milestones ($10k to $1M).
+- **Goals & Milestone Tracker**: Define custom goals or link directly to live balances (Savings, Portfolio, Dip Reserve, Net Worth).
 - **Life Timeline Wealth Planner**: Simulate future wealth considering salary growth, real estate purchases (with mortgage EMI & rental yield), career breaks, refinancing, lump-sum investments, and inflation adjustments.
 - **Transaction Audit Log & CSV Export**: Export complete transaction log to CSV.
 

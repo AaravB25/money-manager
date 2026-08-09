@@ -612,5 +612,251 @@ def export_csv():
         headers={"Content-disposition": "attachment; filename=money_manager_transactions.csv"}
     )
 
+# --- WATCHLIST & MARKET DIP TRIGGERS ---
+@app.route('/api/watchlist', methods=['GET', 'POST', 'DELETE'])
+def handle_watchlist():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if request.method == 'DELETE':
+        item_id = request.args.get('id')
+        ticker = request.args.get('ticker')
+        if item_id:
+            cursor.execute('DELETE FROM watchlist WHERE id = ?', (item_id,))
+        elif ticker:
+            cursor.execute('DELETE FROM watchlist WHERE ticker = ?', (ticker.strip().upper(),))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+
+    if request.method == 'POST':
+        data = request.json or {}
+        ticker = data.get('ticker', '').strip().upper()
+        if not ticker:
+            conn.close()
+            return jsonify({'error': 'Ticker is required'}), 400
+        target_dip_pct = float(data.get('target_dip_pct', 5.0))
+        target_price = float(data.get('target_price', 0.0))
+        notes = data.get('notes', '')
+
+        cursor.execute('''
+            INSERT INTO watchlist (ticker, target_dip_pct, target_price, notes)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(ticker) DO UPDATE SET
+                target_dip_pct = excluded.target_dip_pct,
+                target_price = excluded.target_price,
+                notes = excluded.notes
+        ''', (ticker, target_dip_pct, target_price, notes))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'ticker': ticker})
+
+    # GET
+    cursor.execute('SELECT * FROM watchlist ORDER BY created_at DESC')
+    items = [dict(r) for r in cursor.fetchall()]
+    
+    cursor.execute('SELECT dip_fund_budget FROM accounts WHERE id = 1')
+    acc = cursor.fetchone()
+    dip_reserve = acc['dip_fund_budget'] if acc else 0.0
+    conn.close()
+
+    symbols = [item['ticker'] for item in items]
+    quotes = fetch_multiple_quotes(symbols) if symbols else {}
+
+    enriched_watchlist = []
+    active_dip_alerts_count = 0
+
+    for item in items:
+        sym = item['ticker']
+        quote = quotes.get(sym, {})
+        current_price = quote.get('current_price', 0.0)
+        year_high = quote.get('year_high', current_price)
+        year_low = quote.get('year_low', current_price)
+        dip_from_high = quote.get('dip_from_high_pct', 0.0)
+        currency = quote.get('currency', 'AUD' if sym.endswith('.AX') else 'USD')
+
+        target_dip = item['target_dip_pct']
+        target_price = item['target_price']
+
+        is_dip_triggered = (dip_from_high >= target_dip) or (target_price > 0 and current_price > 0 and current_price <= target_price)
+        if is_dip_triggered:
+            active_dip_alerts_count += 1
+
+        suggested_buy_cash = round(dip_reserve * 0.25, 2) if is_dip_triggered and dip_reserve > 0 else 0.0
+
+        enriched_watchlist.append({
+            'id': item['id'],
+            'ticker': sym,
+            'current_price': current_price,
+            'year_high': year_high,
+            'year_low': year_low,
+            'dip_from_high_pct': dip_from_high,
+            'target_dip_pct': target_dip,
+            'target_price': target_price,
+            'is_dip_triggered': is_dip_triggered,
+            'suggested_buy_cash': suggested_buy_cash,
+            'currency': currency,
+            'notes': item['notes']
+        })
+
+    return jsonify({
+        'watchlist': enriched_watchlist,
+        'dip_reserve_balance': dip_reserve,
+        'active_alerts': active_dip_alerts_count
+    })
+
+# --- 1-CLICK ETF PURCHASE ALLOCATOR ---
+@app.route('/api/tools/allocate', methods=['POST'])
+def allocate_purchases():
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT stock_investment_budget FROM accounts WHERE id = 1')
+    acc = cursor.fetchone()
+    conn.close()
+
+    budget = float(data.get('budget', acc['stock_investment_budget'] if acc else 0.0))
+    targets = data.get('targets', [])
+
+    if not targets:
+        return jsonify({'error': 'No targets specified'}), 400
+
+    symbols = [t['ticker'].strip().upper() for t in targets]
+    quotes = fetch_multiple_quotes(symbols)
+    aud_usd_rate = fetch_aud_usd_rate()
+
+    plan = []
+    total_spent = 0.0
+
+    for t in targets:
+        sym = t['ticker'].strip().upper()
+        weight = float(t.get('weight_pct', 100.0 / len(targets)))
+        allocated_cash = budget * (weight / 100.0)
+        
+        quote = quotes.get(sym, {})
+        price = quote.get('current_price', 0.0)
+        is_asx = sym.endswith('.AX')
+        price_aud = price * (1.0 if is_asx else aud_usd_rate)
+
+        if price_aud > 0:
+            shares_to_buy = int(allocated_cash // price_aud)
+            cost_aud = round(shares_to_buy * price_aud, 2)
+        else:
+            shares_to_buy = 0
+            cost_aud = 0.0
+
+        total_spent += cost_aud
+        plan.append({
+            'ticker': sym,
+            'price': price,
+            'price_aud': round(price_aud, 2),
+            'weight_pct': weight,
+            'allocated_cash': round(allocated_cash, 2),
+            'shares_to_buy': shares_to_buy,
+            'cost_aud': cost_aud,
+            'currency': 'AUD' if is_asx else 'USD'
+        })
+
+    return jsonify({
+        'total_budget': budget,
+        'total_spent': round(total_spent, 2),
+        'remaining_cash': round(budget - total_spent, 2),
+        'allocation_plan': plan
+    })
+
+# --- ESTIMATED DIVIDEND TRACKER ---
+@app.route('/api/tools/dividends', methods=['GET'])
+def get_dividend_tracker():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT ticker, shares, avg_cost FROM portfolio')
+    holdings = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    ESTIMATED_YIELDS = {
+        'VHY.AX': 5.2, 'CBA.AX': 3.8, 'VAS.AX': 3.9, 'DHHF.AX': 2.6,
+        'IVV.AX': 1.3, 'NDQ.AX': 0.8, 'VAE.AX': 3.1, 'XMET.AX': 2.0,
+        'AAPL': 0.5, 'MSFT': 0.7, 'TSLA': 0.0
+    }
+
+    symbols = [h['ticker'] for h in holdings]
+    quotes = fetch_multiple_quotes(symbols) if symbols else {}
+    aud_usd_rate = fetch_aud_usd_rate()
+
+    total_annual_dividend_aud = 0.0
+    dividend_items = []
+
+    for h in holdings:
+        sym = h['ticker']
+        quote = quotes.get(sym, {})
+        current_price = quote.get('current_price', h['avg_cost'])
+        is_asx = sym.endswith('.AX')
+        multiplier = 1.0 if is_asx else aud_usd_rate
+        mkt_val_aud = h['shares'] * current_price * multiplier
+
+        yield_pct = ESTIMATED_YIELDS.get(sym, 2.5)
+        annual_div = round(mkt_val_aud * (yield_pct / 100.0), 2)
+        monthly_div = round(annual_div / 12.0, 2)
+        total_annual_dividend_aud += annual_div
+
+        dividend_items.append({
+            'ticker': sym,
+            'shares': h['shares'],
+            'market_value_aud': round(mkt_val_aud, 2),
+            'yield_pct': yield_pct,
+            'annual_dividend_aud': annual_div,
+            'monthly_dividend_aud': monthly_div
+        })
+
+    return jsonify({
+        'total_annual_dividends': round(total_annual_dividend_aud, 2),
+        'total_monthly_dividends': round(total_annual_dividend_aud / 12.0, 2),
+        'dividend_breakdown': dividend_items
+    })
+
+# --- NET WORTH MILESTONES ---
+@app.route('/api/tools/milestones', methods=['GET'])
+def get_milestones():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget FROM accounts WHERE id = 1')
+    acc = cursor.fetchone()
+    liquid_savings = acc['liquid_savings'] if acc else 0.0
+    spending_balance = acc['spending_balance'] if acc else 0.0
+    stock_budget = acc['stock_investment_budget'] if acc else 0.0
+    dip_fund_budget = acc['dip_fund_budget'] if acc else 0.0
+
+    cursor.execute('SELECT ticker, shares, avg_cost FROM portfolio')
+    holdings = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    aud_usd_rate = fetch_aud_usd_rate()
+    portfolio_value = sum(
+        h['shares'] * STOCK_CACHE.get(h['ticker'], {}).get('current_price', h['avg_cost']) *
+        (1.0 if h['ticker'].endswith('.AX') else aud_usd_rate)
+        for h in holdings
+    )
+    current_net_worth = liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value
+
+    TARGET_MILESTONES = [10000, 25000, 50000, 100000, 250000, 500000, 1000000]
+    milestone_results = []
+
+    for m_target in TARGET_MILESTONES:
+        pct = min(100.0, round((current_net_worth / m_target) * 100.0, 1))
+        gap = max(0.0, round(m_target - current_net_worth, 2))
+        achieved = current_net_worth >= m_target
+
+        milestone_results.append({
+            'target': m_target,
+            'achieved': achieved,
+            'progress_pct': pct,
+            'gap_remaining': gap
+        })
+
+    return jsonify({
+        'current_net_worth': round(current_net_worth, 2),
+        'milestones': milestone_results
+    })
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=True)

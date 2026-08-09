@@ -16,13 +16,13 @@ def seed_demo():
     cursor = conn.cursor()
 
     # Clear any existing data
-    for table in ('accounts', 'portfolio', 'goals', 'transactions', 'income_logs', 'expenses', 'transfers'):
+    for table in ('accounts', 'portfolio', 'goals', 'transactions', 'income_logs', 'expenses', 'transfers', 'watchlist'):
         cursor.execute(f"DELETE FROM {table}")
 
-    # Demo account balances
+    # Demo account balances (with 20% dip fund)
     cursor.execute('''
-        INSERT INTO accounts (id, liquid_savings, spending_balance, stock_investment_budget)
-        VALUES (1, 2500.00, 320.00, 0.0)
+        INSERT INTO accounts (id, liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget)
+        VALUES (1, 2500.00, 320.00, 380.00, 95.00)
     ''')
 
     # Demo portfolio -- fictional tickers and costs
@@ -48,7 +48,7 @@ def seed_demo():
     # Demo income log entry
     cursor.execute('''
         INSERT INTO transactions (type, amount, description)
-        VALUES ('INCOME', 950.00, 'Demo paycheck split: $95 spending / $380 savings / $475 stocks')
+        VALUES ('INCOME', 950.00, 'Demo paycheck split: $95 spending / $380 savings / $380 active stock / $95 dip reserve')
     ''')
 
     # Demo goals
@@ -62,6 +62,18 @@ def seed_demo():
             INSERT INTO goals (title, target_amount, current_amount, category, linked_account)
             VALUES (?, ?, ?, ?, ?)
         ''', (title, target, current, category, linked))
+
+    # Demo Watchlist & Market Dip Triggers
+    demo_watchlist = [
+        ('TSLA', 5.0, 200.00, 'Buy on 5% dip from high'),
+        ('NVDA', 5.0, 120.00, 'AI leader watch'),
+        ('CBA.AX', 4.0, 160.00, 'Bank dip trigger'),
+    ]
+    for ticker, target_dip, target_price, notes in demo_watchlist:
+        cursor.execute('''
+            INSERT INTO watchlist (ticker, target_dip_pct, target_price, notes)
+            VALUES (?, ?, ?, ?)
+        ''', (ticker, target_dip, target_price, notes))
 
     conn.commit()
     conn.close()

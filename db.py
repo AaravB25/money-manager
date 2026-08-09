@@ -137,6 +137,18 @@ def init_db():
     except Exception:
         pass
 
+    # Watchlist table for market dip alerts and favorites
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS watchlist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT UNIQUE NOT NULL,
+            target_dip_pct REAL DEFAULT 5.0,
+            target_price REAL DEFAULT 0.0,
+            notes TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
