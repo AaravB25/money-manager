@@ -135,6 +135,42 @@ body {
     border-top: 1px solid var(--card-border);
 }
 
+/* Subtab Navigation Bar */
+.subtab-bar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.35rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.subtab-btn {
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.subtab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.subtab-btn.active {
+    color: #ffffff !important;
+    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple)) !important;
+    box-shadow: 0 4px 12px var(--accent-indigo-glow);
+}
+
 /* Right Main Content */
 .main-content {
     flex-grow: 1;

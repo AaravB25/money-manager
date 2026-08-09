@@ -68,6 +68,9 @@ function initNavigation() {
 
     const formGoal = document.getElementById('form-add-goal');
     if (formGoal) formGoal.addEventListener('submit', handleAddGoalSubmit);
+
+    const formWatch = document.getElementById('form-add-watchlist');
+    if (formWatch) formWatch.addEventListener('submit', handleAddWatchlistSubmit);
 }
 
 function switchTab(tabId) {
@@ -86,16 +89,44 @@ function switchTab(tabId) {
         loadDashboard();
     } else if (tabId === 'portfolio') {
         loadPortfolio();
+        loadWatchlist();
+        loadDividendTracker();
     } else if (tabId === 'goals') {
         loadGoals();
     } else if (tabId === 'history') {
         loadTransactionHistory();
-    } else if (tabId === 'projections') {
-        runNetWorthProjection();
+    } else if (tabId === 'tools') {
         runCompoundCalculator();
+        loadNetWorthMilestones();
     } else if (tabId === 'planner') {
         renderPlanEventList();
     }
+}
+
+function switchPortSubtab(subId) {
+    document.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.port-subpane').forEach(pane => pane.style.display = 'none');
+
+    const activeBtn = document.getElementById(`subtab-btn-${subId}`);
+    const activePane = document.getElementById(`port-sub-${subId}`);
+
+    if (activeBtn) activeBtn.classList.add('active');
+    if (activePane) activePane.style.display = 'block';
+
+    const addHoldBtn = document.getElementById('btn-add-holding-tab');
+    const addWatchBtn = document.getElementById('btn-add-watchlist-tab');
+
+    if (subId === 'watchlist') {
+        if (addHoldBtn) addHoldBtn.style.display = 'none';
+        if (addWatchBtn) addWatchBtn.style.display = 'inline-flex';
+        loadWatchlist();
+    } else {
+        if (addHoldBtn) addHoldBtn.style.display = 'inline-flex';
+        if (addWatchBtn) addWatchBtn.style.display = 'none';
+    }
+
+    if (subId === 'dividends') loadDividendTracker();
+    if (subId === 'allocator') loadDashboard();
 }
 
 // Income Preview (10% Spending, 40% Liquid Savings, 50% Stock Budget)
@@ -1130,7 +1161,6 @@ function renderWealthPlanResults(plan, years) {
         const rows = plan.snapshot_table.filter(r => r.year === 1 || r.year % 5 === 0);
         tbody.innerHTML = rows.map(r => {
             const pausedTag = r.pay_paused ? ' <span style="color:#f87171;font-size:0.7rem;">[break]</span>' : '';
-            // List any property rental incomes
             const rentalNote = (r.properties || []).filter(p => p.rental_monthly > 0)
                 .map(p => `${p.label}: $${p.rental_monthly.toFixed(0)}/mo`).join(', ');
             return `
@@ -1146,5 +1176,245 @@ function renderWealthPlanResults(plan, years) {
                 </tr>
             `;
         }).join('');
+    }
+}
+
+// --- WATCHLIST & INVESTOR TOOLS ---
+async function loadWatchlist() {
+    try {
+        const res = await fetch('/api/watchlist');
+        const data = await res.json();
+
+        const countEl = document.getElementById('watchlist-count');
+        if (countEl) countEl.textContent = `${data.watchlist ? data.watchlist.length : 0} items (${data.active_alerts || 0} alerts)`;
+
+        const reserveEl = document.getElementById('watchlist-dip-reserve');
+        if (reserveEl) reserveEl.textContent = `${data.dip_reserve_balance.toFixed(2)}`;
+
+        const allocVal = document.getElementById('allocator-budget-val');
+        if (allocVal && data.active_stock_budget !== undefined) {
+            allocVal.textContent = data.active_stock_budget.toFixed(2);
+        }
+
+        const tbody = document.getElementById('watchlist-table-body');
+        if (!tbody) return;
+
+        if (!data.watchlist || data.watchlist.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No watchlist items yet. Click "+ Add to Watchlist" to track tickers.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.watchlist.map(item => {
+            const isAlert = item.is_dip_triggered;
+            const statusBadge = isAlert
+                ? '<span class="badge badge-warning" style="background:#ef4444;color:#fff;">DIP ALERT ACTIVE</span>'
+                : '<span class="badge badge-success">Normal</span>';
+
+            const currSymbol = item.currency === 'USD' ? 'US$' : '$';
+            const dipBuyText = item.suggested_buy_cash > 0
+                ? `<strong class="text-green">Deploy $${item.suggested_buy_cash.toFixed(2)}</strong>`
+                : '<span class="text-muted">Wait for dip</span>';
+
+            return `
+                <tr>
+                    <td><strong>${item.ticker}</strong></td>
+                    <td class="font-bold">${currSymbol}${item.current_price.toFixed(2)}</td>
+                    <td class="text-muted">${currSymbol}${item.year_high.toFixed(2)}</td>
+                    <td class="text-muted">${currSymbol}${item.year_low.toFixed(2)}</td>
+                    <td class="${item.dip_from_high_pct >= item.target_dip_pct ? 'text-rose font-bold' : ''}">${item.dip_from_high_pct}%</td>
+                    <td>${item.target_dip_pct}%</td>
+                    <td>${statusBadge}</td>
+                    <td>${dipBuyText}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteWatchlistItem(${item.id})">&#x2715;</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Failed to load watchlist:', err);
+    }
+}
+
+async function handleAddWatchlistSubmit(e) {
+    e.preventDefault();
+    const payload = {
+        ticker: document.getElementById('watch-ticker').value,
+        target_dip_pct: parseFloat(document.getElementById('watch-dip-pct').value) || 5.0,
+        target_price: parseFloat(document.getElementById('watch-target-price').value) || 0.0,
+        notes: document.getElementById('watch-notes').value
+    };
+
+    try {
+        const res = await fetch('/api/watchlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeModal('modal-add-watchlist');
+            document.getElementById('form-add-watchlist').reset();
+            loadWatchlist();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to add watchlist item'));
+        }
+    } catch (err) {
+        alert('Failed to add watchlist item.');
+    }
+}
+
+async function deleteWatchlistItem(id) {
+    try {
+        const res = await fetch(`/api/watchlist?id=${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) loadWatchlist();
+    } catch (err) {
+        console.error('Failed to delete watchlist item:', err);
+    }
+}
+
+function addAllocatorRow() {
+    const container = document.getElementById('alloc-tickers-list');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'form-row';
+    div.style.marginBottom = '0.5rem';
+    div.innerHTML = `
+        <input type="text" class="form-input alloc-ticker" placeholder="e.g. VHY.AX">
+        <input type="number" class="form-input alloc-weight" placeholder="Weight %" value="50">
+    `;
+    container.appendChild(div);
+}
+
+async function runPurchaseAllocator() {
+    const budgetInput = document.getElementById('alloc-budget');
+    let budget = parseFloat(budgetInput.value);
+
+    if (!budget || budget <= 0) {
+        const dashRes = await fetch('/api/dashboard');
+        const dashData = await dashRes.json();
+        budget = dashData.stock_investment_budget || 0.0;
+        if (budgetInput) budgetInput.value = budget;
+    }
+
+    const tickerInputs = document.querySelectorAll('.alloc-ticker');
+    const weightInputs = document.querySelectorAll('.alloc-weight');
+
+    const targets = [];
+    tickerInputs.forEach((tInput, idx) => {
+        const tick = tInput.value.trim().toUpperCase();
+        const w = parseFloat(weightInputs[idx].value) || 0;
+        if (tick) targets.push({ ticker: tick, weight_pct: w });
+    });
+
+    if (targets.length === 0) {
+        alert('Please specify at least one ticker to allocate purchases.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/tools/allocate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ budget, targets })
+        });
+        const data = await res.json();
+        if (data.allocation_plan) {
+            const resultsCard = document.getElementById('allocator-results');
+            if (resultsCard) resultsCard.style.display = 'block';
+
+            const details = document.getElementById('allocator-plan-details');
+            if (details) {
+                details.innerHTML = `
+                    <p style="margin-bottom:0.5rem;font-size:0.88rem;">Spent: <strong class="text-green">$${data.total_spent.toFixed(2)}</strong> of $${data.total_budget.toFixed(2)} budget | Remaining Unspent Cash: <strong>$${data.remaining_cash.toFixed(2)}</strong></p>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Ticker</th><th>Price</th><th>Allocated</th><th>Shares to Buy</th><th>Cost (AUD)</th></tr>
+                        </thead>
+                        <tbody>
+                            ${data.allocation_plan.map(p => `
+                                <tr>
+                                    <td><strong>${p.ticker}</strong></td>
+                                    <td>$${p.price_aud.toFixed(2)}</td>
+                                    <td>$${p.allocated_cash.toFixed(2)}</td>
+                                    <td class="text-green font-bold" style="font-size:1.05rem;">${p.shares_to_buy} shares</td>
+                                    <td>$${p.cost_aud.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+        }
+    } catch (err) {
+        alert('Failed to calculate allocation plan.');
+    }
+}
+
+async function loadDividendTracker() {
+    try {
+        const res = await fetch('/api/tools/dividends');
+        const data = await res.json();
+
+        const annEl = document.getElementById('div-annual-val');
+        if (annEl) annEl.textContent = `$${data.total_annual_dividends.toFixed(2)} / yr`;
+
+        const monEl = document.getElementById('div-monthly-val');
+        if (monEl) monEl.textContent = `$${data.total_monthly_dividends.toFixed(2)} / mo`;
+
+        const badge = document.getElementById('div-total-annual');
+        if (badge) badge.textContent = `$${data.total_annual_dividends.toFixed(2)} / yr`;
+
+        const tbody = document.getElementById('dividend-table-body');
+        if (!tbody) return;
+
+        if (!data.dividend_breakdown || data.dividend_breakdown.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No stock holdings recorded yet. Add positions in Stock Portfolio tab.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.dividend_breakdown.map(item => `
+            <tr>
+                <td><strong>${item.ticker}</strong></td>
+                <td>$${item.market_value_aud.toFixed(2)}</td>
+                <td><span class="badge badge-info">${item.yield_pct}%</span></td>
+                <td class="text-green"><strong>$${item.annual_dividend_aud.toFixed(2)} / yr</strong> ($${item.monthly_dividend_aud.toFixed(2)}/mo)</td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load dividend tracker:', err);
+    }
+}
+
+async function loadNetWorthMilestones() {
+    try {
+        const res = await fetch('/api/tools/milestones');
+        const data = await res.json();
+        const grid = document.getElementById('milestones-cards-grid');
+        if (!grid || !data.milestones) return;
+
+        grid.innerHTML = data.milestones.map(m => {
+            const isAchieved = m.achieved;
+            const borderClass = isAchieved ? 'border-green' : 'border-blue';
+            const badge = isAchieved
+                ? '<span class="badge badge-success">ACHIEVED!</span>'
+                : `<span class="badge badge-warning">$${m.gap_remaining.toLocaleString()} remaining</span>`;
+
+            return `
+                <div class="card metric-card ${borderClass}">
+                    <div class="card-header">
+                        <span class="metric-title">$${m.target.toLocaleString()} Milestone</span>
+                        ${badge}
+                    </div>
+                    <div class="metric-value ${isAchieved ? 'text-green' : 'text-blue'}">${m.progress_pct}%</div>
+                    <div class="progress-bar-bg" style="margin-top:0.4rem;">
+                        <div class="progress-bar-fill" style="width:${m.progress_pct}%;"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Failed to load milestones:', err);
     }
 }
