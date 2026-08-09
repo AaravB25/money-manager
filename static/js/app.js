@@ -214,29 +214,9 @@ async function loadDashboard() {
         renderNetWorthDonut(data.liquid_savings, data.portfolio_value, data.spending_balance, data.stock_investment_budget, data.dip_fund_budget);
         renderRecentActivity(data.recent_transactions);
         renderDashboardGoals();
+        loadNetWorthMilestones();
     } catch (err) {
         console.error('Failed to load dashboard data:', err);
-    }
-}
-
-async function refreshStockPrices() {
-    const btnTab = document.getElementById('btn-refresh-prices-tab');
-    const btnMain = document.getElementById('btn-refresh-prices');
-    if (btnTab) { btnTab.disabled = true; btnTab.textContent = 'Refreshing...'; }
-    if (btnMain) { btnMain.disabled = true; btnMain.textContent = 'Refreshing...'; }
-
-    try {
-        const res = await fetch('/api/portfolio/refresh', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            await loadPortfolio();
-            await loadDashboard();
-        }
-    } catch (err) {
-        console.error('Failed to refresh stock prices:', err);
-    } finally {
-        if (btnTab) { btnTab.disabled = false; btnTab.textContent = 'Refresh Prices'; }
-        if (btnMain) { btnMain.disabled = false; btnMain.textContent = 'Refresh Prices'; }
     }
 }
 
@@ -292,6 +272,43 @@ async function loadPortfolio() {
                 </tr>
             `;
         }).join('');
+
+        // Render Active Stock Budget Purchase Calculator Table
+        try {
+            const dashRes = await fetch('/api/dashboard');
+            const dashData = await dashRes.json();
+            const activeBudget = dashData.stock_investment_budget || 0.0;
+
+            const calcBudEl = document.getElementById('holding-calc-budget');
+            if (calcBudEl) calcBudEl.textContent = activeBudget.toFixed(2);
+
+            const calcTbody = document.getElementById('holding-calc-table-body');
+            if (calcTbody && data.holdings) {
+                if (activeBudget <= 0) {
+                    calcTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No active stock budget available ($0.00). Log income to allocate stock budget.</td></tr>';
+                } else {
+                    calcTbody.innerHTML = data.holdings.map(h => {
+                        const priceAud = h.market_value_aud / h.shares;
+                        const maxShares = Math.floor(activeBudget / priceAud);
+                        const totalCost = maxShares * priceAud;
+                        const remaining = activeBudget - totalCost;
+
+                        return `
+                            <tr>
+                                <td><strong>${h.code}</strong></td>
+                                <td>${h.name}</td>
+                                <td>$${priceAud.toFixed(2)} AUD</td>
+                                <td class="text-green font-bold" style="font-size:1.05rem;">${maxShares} shares</td>
+                                <td>$${totalCost.toFixed(2)} AUD</td>
+                                <td class="text-muted">$${remaining.toFixed(2)} AUD</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            }
+        } catch (errCalc) {
+            console.error('Failed to render stock budget purchase calculator:', errCalc);
+        }
     } catch (err) {
         console.error('Failed to load portfolio:', err);
     }

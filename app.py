@@ -5,7 +5,7 @@ import os
 import time
 from db import init_db, get_db_connection
 from calculator import calculate_pay_split
-from stock_tracker import fetch_stock_quote, fetch_multiple_quotes, fetch_aud_usd_rate
+from stock_tracker import fetch_stock_quote, fetch_multiple_quotes, fetch_aud_usd_rate, fetch_multiple_dividend_yields
 from simulations import calculate_compound_interest, calculate_personalized_net_worth_projection, calculate_wealth_plan
 from expense_manager import (
     sync_spending_balance,
@@ -90,7 +90,7 @@ def get_dashboard():
     gain_loss_pct = (total_gain_loss_aud / total_cost_aud * 100) if total_cost_aud > 0 else 0.0
     net_worth_aud = round(liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value_aud, 2)
     
-    cursor.execute("SELECT * FROM transactions ORDER BY date DESC LIMIT 10")
+    cursor.execute("SELECT * FROM transactions ORDER BY date DESC LIMIT 5")
     recent_transactions = [dict(row) for row in cursor.fetchall()]
 
     cursor.execute("SELECT * FROM goals ORDER BY created_at DESC")
@@ -773,14 +773,9 @@ def get_dividend_tracker():
     holdings = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
-    ESTIMATED_YIELDS = {
-        'VHY.AX': 5.2, 'CBA.AX': 3.8, 'VAS.AX': 3.9, 'DHHF.AX': 2.6,
-        'IVV.AX': 1.3, 'NDQ.AX': 0.8, 'VAE.AX': 3.1, 'XMET.AX': 2.0,
-        'AAPL': 0.5, 'MSFT': 0.7, 'TSLA': 0.0
-    }
-
     symbols = [h['ticker'] for h in holdings]
     quotes = fetch_multiple_quotes(symbols) if symbols else {}
+    actual_yields = fetch_multiple_dividend_yields(symbols) if symbols else {}
     aud_usd_rate = fetch_aud_usd_rate()
 
     total_annual_dividend_aud = 0.0
@@ -794,7 +789,7 @@ def get_dividend_tracker():
         multiplier = 1.0 if is_asx else aud_usd_rate
         mkt_val_aud = h['shares'] * current_price * multiplier
 
-        yield_pct = ESTIMATED_YIELDS.get(sym, 2.5)
+        yield_pct = actual_yields.get(sym, 0.0)
         annual_div = round(mkt_val_aud * (yield_pct / 100.0), 2)
         monthly_div = round(annual_div / 12.0, 2)
         total_annual_dividend_aud += annual_div
@@ -807,6 +802,12 @@ def get_dividend_tracker():
             'annual_dividend_aud': annual_div,
             'monthly_dividend_aud': monthly_div
         })
+
+    return jsonify({
+        'total_annual_dividends': round(total_annual_dividend_aud, 2),
+        'total_monthly_dividends': round(total_annual_dividend_aud / 12.0, 2),
+        'dividend_breakdown': dividend_items
+    })
 
     return jsonify({
         'total_annual_dividends': round(total_annual_dividend_aud, 2),

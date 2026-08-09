@@ -87,3 +87,39 @@ def fetch_multiple_quotes(symbols):
             except Exception as e:
                 logging.error(f"Error fetching {sym} in thread: {e}")
     return results
+
+def fetch_single_dividend_yield(symbol):
+    clean_symbol = symbol.strip().upper()
+    try:
+        t = yf.Ticker(clean_symbol)
+        info = t.info
+        y = info.get('dividendYield') or info.get('trailingAnnualDividendYield')
+        if y is not None and y > 0:
+            pct = (y * 100.0) if y < 0.20 else float(y)
+            if pct > 25.0:
+                pct = pct / 100.0
+            return round(pct, 2)
+        divs = t.dividends
+        if not divs.empty:
+            annual_div_sum = float(divs.tail(4).sum())
+            price = getattr(t.fast_info, 'last_price', None) or getattr(t.fast_info, 'regular_market_price', None)
+            if price and price > 0:
+                return round((annual_div_sum / price) * 100.0, 2)
+    except Exception as e:
+        logging.error(f"Error fetching dividend yield for {clean_symbol}: {e}")
+    return 0.0
+
+def fetch_multiple_dividend_yields(symbols):
+    clean_symbols = list(set([s.strip().upper() for s in symbols if s]))
+    if not clean_symbols:
+        return {}
+    results = {}
+    with ThreadPoolExecutor(max_workers=min(10, len(clean_symbols))) as executor:
+        future_to_symbol = {executor.submit(fetch_single_dividend_yield, sym): sym for sym in clean_symbols}
+        for future in future_to_symbol:
+            sym = future_to_symbol[future]
+            try:
+                results[sym] = future.result()
+            except Exception:
+                results[sym] = 0.0
+    return results
