@@ -42,6 +42,9 @@ def fetch_stock_quote(symbol):
         if current_price is None or current_price == 0:
             return {'symbol': clean_symbol, 'valid': False, 'error': 'Price not found'}
 
+        change = (current_price - prev_close) if (prev_close and prev_close > 0) else 0.0
+        change_pct = (change / prev_close * 100) if (prev_close and prev_close > 0) else 0.0
+
         year_high = getattr(info, 'year_high', None) or current_price
         year_low = getattr(info, 'year_low', None) or current_price
         dip_from_high_pct = round(((year_high - current_price) / year_high * 100), 2) if (year_high and year_high > 0) else 0.0
