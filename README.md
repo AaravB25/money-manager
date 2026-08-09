@@ -8,7 +8,6 @@ A web-based personal finance, wealth simulation, and portfolio management dashbo
 - **Paycheck Splitter**: Automatically splits income into Spending (10%), Liquid Savings (40%), and Stock Investment (50% — sub-split into 80% Active Stock Buying + 20% Market Dip Reserve).
 - **Stock Portfolio Tracker**: Real-time market prices via parallel `yfinance` queries supporting ASX and US market assets.
 - **Watchlist & Market Dip Trigger Alerts**: Monitor any stock or ETF (owned or unowned). Calculates automated dip buy deployment from your Market Dip Reserve when prices dip below target.
-- **1-Click ETF Purchase Allocator**: Enter target weighting percentages to calculate exact share quantities to buy with your active stock budget.
 - **Dividend Cashflow Tracker**: Displays estimated monthly and annual passive dividend income across your stock portfolio.
 - **Net Worth Milestone Tracker**: Progress tracking toward major wealth milestones ($10k to $1M).
 - **Goals & Milestone Tracker**: Define custom goals or link directly to live balances (Savings, Portfolio, Dip Reserve, Net Worth).
@@ -20,7 +19,7 @@ A web-based personal finance, wealth simulation, and portfolio management dashbo
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/AaravB25/money-manager
 cd money-manager
 pip install -r requirements.txt
 ```
