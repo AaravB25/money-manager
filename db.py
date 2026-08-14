@@ -8,6 +8,13 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def _safe_alter(cursor, sql):
+    """Run an ALTER TABLE statement, silently ignoring if column already exists."""
+    try:
+        cursor.execute(sql)
+    except Exception:
+        pass
+
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -24,10 +31,7 @@ def init_db():
         )
     ''')
 
-    try:
-        cursor.execute("ALTER TABLE accounts ADD COLUMN dip_fund_budget REAL DEFAULT 0.0")
-    except Exception:
-        pass
+    _safe_alter(cursor, "ALTER TABLE accounts ADD COLUMN dip_fund_budget REAL DEFAULT 0.0")
     
     # Initialize default account record if empty
     cursor.execute("SELECT COUNT(*) FROM accounts")
@@ -37,7 +41,7 @@ def init_db():
             VALUES (1, 0.0, 0.0, 0.0, 0.0)
         ''')
 
-    # Migrate: merge any existing dip_fund_budget into stock_investment_budget (one-time migration)
+    # Migrate: merge any existing dip_fund_budget into stock_investment_budget
     try:
         cursor.execute("SELECT dip_fund_budget FROM accounts WHERE id = 1")
         row = cursor.fetchone()
@@ -51,7 +55,23 @@ def init_db():
     except Exception:
         pass
 
-    # Settings table
+    # ===== USER SETTINGS TABLE =====
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            pay_cycle TEXT DEFAULT 'fortnightly',
+            pay_day INTEGER DEFAULT 4,
+            last_paycheck_date TEXT DEFAULT '',
+            spending_threshold REAL DEFAULT 100.0,
+            theme TEXT DEFAULT 'dark',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute("SELECT COUNT(*) FROM user_settings")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO user_settings (id) VALUES (1)")
+
+    # Legacy settings table (kept for backward compat)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY DEFAULT 1,
@@ -69,7 +89,7 @@ def init_db():
             VALUES (1, 10.0, 90.0, 500.0)
         ''')
 
-    # Income logs table
+    # ===== INCOME LOGS =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS income_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,8 +101,9 @@ def init_db():
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    _safe_alter(cursor, "ALTER TABLE income_logs ADD COLUMN income_type TEXT DEFAULT 'paycheck'")
 
-    # Stock portfolio holdings table
+    # ===== PORTFOLIO =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS portfolio (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,19 +114,21 @@ def init_db():
         )
     ''')
 
-    # Expenses & Balance sync table
+    # ===== EXPENSES =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_type TEXT NOT NULL, -- 'spending' or 'savings'
-            expense_type TEXT NOT NULL, -- 'preset', 'sync', 'savings_withdrawal', 'direct'
+            account_type TEXT NOT NULL,
+            expense_type TEXT NOT NULL,
             amount REAL NOT NULL,
             description TEXT NOT NULL,
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    _safe_alter(cursor, "ALTER TABLE expenses ADD COLUMN category TEXT DEFAULT 'General'")
+    _safe_alter(cursor, "ALTER TABLE expenses ADD COLUMN notes TEXT DEFAULT ''")
 
-    # Inter-account transfers table
+    # ===== TRANSFERS =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS transfers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,11 +140,11 @@ def init_db():
         )
     ''')
 
-    # Complete audit transaction log table
+    # ===== TRANSACTIONS (audit log) =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL, -- 'INCOME', 'EXPENSE', 'TRANSFER', 'BUY', 'SELL'
+            type TEXT NOT NULL,
             ticker TEXT,
             shares REAL,
             price REAL,
@@ -130,8 +153,9 @@ def init_db():
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    _safe_alter(cursor, "ALTER TABLE transactions ADD COLUMN notes TEXT DEFAULT ''")
 
-    # Financial goals table
+    # ===== GOALS =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS goals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,14 +168,9 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    _safe_alter(cursor, "ALTER TABLE goals ADD COLUMN linked_account TEXT DEFAULT 'none'")
 
-    # Add linked_account column if upgrading from older schema
-    try:
-        cursor.execute("ALTER TABLE goals ADD COLUMN linked_account TEXT DEFAULT 'none'")
-    except Exception:
-        pass
-
-    # Watchlist table for market dip alerts and favorites
+    # ===== WATCHLIST =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS watchlist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +179,57 @@ def init_db():
             target_price REAL DEFAULT 0.0,
             notes TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ===== NET WORTH SNAPSHOTS (new) =====
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS net_worth_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL UNIQUE,
+            net_worth REAL NOT NULL,
+            liquid_savings REAL DEFAULT 0.0,
+            spending_balance REAL DEFAULT 0.0,
+            stock_budget REAL DEFAULT 0.0,
+            portfolio_value REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ===== RECURRING EXPENSES (new) =====
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS recurring_expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT DEFAULT 'Bills',
+            frequency TEXT DEFAULT 'monthly',
+            day_of_month INTEGER DEFAULT 1,
+            active INTEGER DEFAULT 1,
+            last_triggered TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ===== TARGET ALLOCATIONS (new) =====
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS target_allocations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT UNIQUE NOT NULL,
+            target_pct REAL NOT NULL DEFAULT 10.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ===== BROKERAGE FEES (new) =====
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS brokerage_fees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT NOT NULL,
+            action TEXT NOT NULL,
+            fee_amount REAL NOT NULL,
+            trade_amount REAL DEFAULT 0.0,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 

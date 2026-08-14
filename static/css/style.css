@@ -728,3 +728,190 @@ body {
     flex-direction: column;
     gap: 0.6rem;
 }
+
+/* Light Theme Variables */
+body[data-theme="light"] {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #f1f5f9;
+    --card-bg: rgba(255, 255, 255, 0.95);
+    --card-border: rgba(0, 0, 0, 0.08);
+    --card-hover: rgba(241, 245, 249, 1);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+}
+
+body[data-theme="light"] .card,
+body[data-theme="light"] .hero-card,
+body[data-theme="light"] .goal-card,
+body[data-theme="light"] .modal-card {
+    background-color: #ffffff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+body[data-theme="light"] .stat-box,
+body[data-theme="light"] .activity-item,
+body[data-theme="light"] .plan-event-item {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+body[data-theme="light"] .form-input {
+    background: #f8fafc;
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
+
+/* Alert Banner */
+.alert-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(249, 115, 22, 0.15));
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: var(--radius-md);
+    margin-bottom: 1.25rem;
+    color: #ef4444;
+}
+
+.alert-banner-warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 179, 8, 0.15));
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+}
+
+.alert-banner-content {
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+.alert-banner-close {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* Toast Celebration */
+.toast-celebration {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #ffffff;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    z-index: 100;
+    animation: slideUp 0.3s ease-out;
+}
+
+.toast-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.toast-icon {
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Pay Countdown */
+.pay-countdown-container {
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.pay-countdown-number {
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: var(--accent-emerald);
+    line-height: 1;
+}
+
+.pay-countdown-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.pay-countdown-date {
+    font-size: 0.75rem;
+    margin-top: 0.35rem;
+}
+
+/* Spending Pace */
+.pace-container {
+    text-align: center;
+    padding: 0.75rem 0;
+}
+
+.pace-spent {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent-rose);
+}
+
+.pace-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.pace-detail {
+    font-size: 0.76rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 900px) {
+    .app-container {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        position: relative;
+    }
+    .nav-menu {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    .nav-item {
+        width: auto;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+    .main-content {
+        padding: 1rem;
+    }
+    .grid-2-col, .dashboard-row, .planner-layout {
+        grid-template-columns: 1fr;
+    }
+    .hero-card {
+        flex-direction: column;
+    }
+}
+
