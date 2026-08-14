@@ -148,8 +148,6 @@ function initIncomePreview() {
         const spendingAmt = pay * (spendingPct / 100);
         const savingsAmt = pay * (savingsPct / 100);
         const stockAmt = pay * (stockPct / 100);
-        const stockActiveAmt = stockAmt * 0.80;
-        const stockDipAmt = stockAmt * 0.20;
 
         const prevPay = document.getElementById('prev-pay');
         if (prevPay) prevPay.textContent = `$${pay.toFixed(2)}`;
@@ -161,10 +159,10 @@ function initIncomePreview() {
         if (prevSave) prevSave.textContent = `$${savingsAmt.toFixed(2)}`;
 
         const prevStockActive = document.getElementById('prev-stock-active');
-        if (prevStockActive) prevStockActive.textContent = `$${stockActiveAmt.toFixed(2)}`;
+        if (prevStockActive) prevStockActive.textContent = `$${stockAmt.toFixed(2)}`;
 
         const prevStockDip = document.getElementById('prev-stock-dip');
-        if (prevStockDip) prevStockDip.textContent = `$${stockDipAmt.toFixed(2)}`;
+        if (prevStockDip) prevStockDip.textContent = `$${(0).toFixed(2)}`;
     }
 
     if (amountInput) amountInput.addEventListener('input', updatePreview);
@@ -193,7 +191,7 @@ async function loadDashboard() {
         if (budgetEl) budgetEl.textContent = `$${data.stock_investment_budget.toFixed(2)}`;
 
         const dipEl = document.getElementById('dash-dip-budget');
-        if (dipEl) dipEl.textContent = `$${data.dip_fund_budget.toFixed(2)}`;
+        if (dipEl) dipEl.textContent = '';
 
         const portValEl = document.getElementById('dash-portfolio-val');
         if (portValEl) portValEl.textContent = `$${data.portfolio_value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -211,7 +209,7 @@ async function loadDashboard() {
         const holdingsCountEl = document.getElementById('dash-holdings-count');
         if (holdingsCountEl) holdingsCountEl.textContent = `${data.holdings_count} Holdings`;
 
-        renderNetWorthDonut(data.liquid_savings, data.portfolio_value, data.spending_balance, data.stock_investment_budget, data.dip_fund_budget);
+        renderNetWorthDonut(data.liquid_savings, data.portfolio_value, data.spending_balance, data.stock_investment_budget);
         renderRecentActivity(data.recent_transactions);
         renderDashboardGoals();
         loadNetWorthMilestones();
@@ -336,7 +334,7 @@ async function refreshStockPrices() {
 }
 
 // Donut Chart
-function renderNetWorthDonut(savings, portfolio, spending, stockBudget, dipBudget) {
+function renderNetWorthDonut(savings, portfolio, spending, stockBudget) {
     const canvas = document.getElementById('chart-net-worth-donut');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -345,10 +343,10 @@ function renderNetWorthDonut(savings, portfolio, spending, stockBudget, dipBudge
     netWorthDonutChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Liquid Savings', 'Stock Portfolio', 'Spending Cash', 'Active Stock Budget', 'Market Dip Reserve'],
+            labels: ['Liquid Savings', 'Stock Portfolio', 'Spending Cash', 'Active Stock Budget'],
             datasets: [{
-                data: [savings, portfolio, spending, stockBudget, dipBudget || 0],
-                backgroundColor: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4'],
+                data: [savings, portfolio, spending, stockBudget],
+                backgroundColor: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b'],
                 borderWidth: 0
             }]
         },
@@ -371,16 +369,35 @@ function renderRecentActivity(txs) {
         return;
     }
 
+    const undoableTypes = ['INCOME', 'EXPENSE'];
     container.innerHTML = txs.map(t => `
         <div class="activity-item">
-            <div style="display:flex; justify-content:space-between; font-weight:600;">
+            <div style="display:flex; justify-content:space-between; font-weight:600; align-items:center;">
                 <span>${t.type}</span>
-                <span class="${t.type === 'INCOME' ? 'text-green' : (t.type === 'EXPENSE' ? 'text-rose' : 'text-blue')}">$${t.amount.toFixed(2)}</span>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <span class="${t.type === 'INCOME' ? 'text-green' : (t.type === 'EXPENSE' ? 'text-rose' : 'text-blue')}">$${Math.abs(t.amount).toFixed(2)}</span>
+                    ${undoableTypes.includes(t.type) ? `<button class="btn btn-sm" style="padding:2px 8px; font-size:0.72rem; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:4px; cursor:pointer;" onclick="undoTransaction(${t.id})">Undo</button>` : ''}
+                </div>
             </div>
             <div style="color:var(--text-secondary); font-size:0.8rem; margin-top:2px;">${t.description}</div>
             <div class="activity-date">${new Date(t.date).toLocaleDateString()}</div>
         </div>
     `).join('');
+}
+
+async function undoTransaction(txId) {
+    if (!confirm(`Reverse transaction #${txId}? This will subtract the amounts back from your account balances.`)) return;
+    try {
+        const res = await fetch(`/api/transactions/undo/${txId}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            await loadDashboard();
+        } else {
+            alert(`Could not undo: ${data.error}`);
+        }
+    } catch (err) {
+        alert('Failed to undo transaction.');
+    }
 }
 
 async function renderDashboardGoals() {

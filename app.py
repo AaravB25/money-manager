@@ -53,12 +53,11 @@ def get_dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget FROM accounts WHERE id = 1")
+    cursor.execute("SELECT liquid_savings, spending_balance, stock_investment_budget FROM accounts WHERE id = 1")
     acc = cursor.fetchone()
     liquid_savings = acc['liquid_savings'] if acc else 0.0
     spending_balance = acc['spending_balance'] if acc else 0.0
     stock_budget = acc['stock_investment_budget'] if acc else 0.0
-    dip_fund_budget = acc['dip_fund_budget'] if acc else 0.0
     
     cursor.execute("SELECT ticker, shares, avg_cost FROM portfolio")
     holdings = [dict(row) for row in cursor.fetchall()]
@@ -88,7 +87,7 @@ def get_dashboard():
         
     total_gain_loss_aud = portfolio_value_aud - total_cost_aud
     gain_loss_pct = (total_gain_loss_aud / total_cost_aud * 100) if total_cost_aud > 0 else 0.0
-    net_worth_aud = round(liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value_aud, 2)
+    net_worth_aud = round(liquid_savings + spending_balance + stock_budget + portfolio_value_aud, 2)
     
     cursor.execute("SELECT * FROM transactions ORDER BY date DESC LIMIT 5")
     recent_transactions = [dict(row) for row in cursor.fetchall()]
@@ -103,7 +102,6 @@ def get_dashboard():
         'liquid_savings': round(liquid_savings, 2),
         'spending_balance': round(spending_balance, 2),
         'stock_investment_budget': round(stock_budget, 2),
-        'dip_fund_budget': round(dip_fund_budget, 2),
         'portfolio_value': round(portfolio_value_aud, 2),
         'total_cost': round(total_cost_aud, 2),
         'total_gain_loss': round(total_gain_loss_aud, 2),
@@ -355,21 +353,22 @@ def add_income():
         SET liquid_savings = liquid_savings + ?,
             spending_balance = spending_balance + ?,
             stock_investment_budget = stock_investment_budget + ?,
-            dip_fund_budget = dip_fund_budget + ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
-    ''', (split['savings_amount'], split['spending_amount'], split['active_stock_allocation'], split['dip_fund_allocation']))
+    ''', (split['savings_amount'], split['spending_amount'], split['active_stock_allocation']))
     
-    audit_desc = f"[INCOME] {description}: ${amount:.2f} (Spending: +${split['spending_amount']:.2f}, Savings: +${split['savings_amount']:.2f}, Stock Budget: +${split['active_stock_allocation']:.2f}, Dip Fund: +${split['dip_fund_allocation']:.2f})"
+    audit_desc = f"[INCOME] {description}: ${amount:.2f} | Spending: +${split['spending_amount']:.2f} | Savings: +${split['savings_amount']:.2f} | Stock Budget: +${split['active_stock_allocation']:.2f}"
+    # Store split details in description for undo capability
     cursor.execute('''
         INSERT INTO transactions (type, amount, description)
         VALUES ('INCOME', ?, ?)
     ''', (amount, audit_desc))
+    income_tx_id = cursor.lastrowid
     
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'message': f'Income of ${amount:.2f} recorded.', 'split': split})
+    return jsonify({'success': True, 'message': f'Income of ${amount:.2f} recorded.', 'split': split, 'transaction_id': income_tx_id})
 
 @app.route('/api/expenses/sync', methods=['POST'])
 def handle_spending_sync():
@@ -423,6 +422,70 @@ def handle_transfer():
         return jsonify(result), 400
     return jsonify(result)
 
+# --- UNDO TRANSACTION ---
+@app.route('/api/transactions/undo/<int:tx_id>', methods=['POST'])
+def undo_transaction(tx_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM transactions WHERE id = ?', (tx_id,))
+    tx = cursor.fetchone()
+    if not tx:
+        conn.close()
+        return jsonify({'error': 'Transaction not found'}), 404
+
+    tx = dict(tx)
+    tx_type = tx['type']
+
+    if tx_type == 'INCOME':
+        # Parse amounts back from description using stored split amounts
+        import re
+        desc = tx['description']
+        spending = savings = stock = 0.0
+        m = re.search(r'Spending: \+\$([\d.]+)', desc)
+        if m: spending = float(m.group(1))
+        m = re.search(r'Savings: \+\$([\d.]+)', desc)
+        if m: savings = float(m.group(1))
+        m = re.search(r'Stock Budget: \+\$([\d.]+)', desc)
+        if m: stock = float(m.group(1))
+
+        cursor.execute('''
+            UPDATE accounts
+            SET liquid_savings = MAX(0, liquid_savings - ?),
+                spending_balance = MAX(0, spending_balance - ?),
+                stock_investment_budget = MAX(0, stock_investment_budget - ?),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 1
+        ''', (savings, spending, stock))
+
+    elif tx_type == 'EXPENSE':
+        # Restore spending balance
+        cursor.execute('''
+            UPDATE accounts SET spending_balance = spending_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1
+        ''', (abs(tx['amount']),))
+
+    else:
+        conn.close()
+        return jsonify({'error': f'Cannot undo transaction type "{tx_type}" automatically. Please adjust balances manually via the transfer tool.'}), 400
+
+    undo_desc = f"[UNDO] Reversed transaction #{tx_id}: {tx['description'][:80]}"
+    cursor.execute("INSERT INTO transactions (type, amount, description) VALUES ('UNDO', ?, ?)",
+                   (-abs(tx['amount']), undo_desc))
+    cursor.execute('DELETE FROM transactions WHERE id = ?', (tx_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': f'Transaction #{tx_id} reversed successfully.'})
+
+# --- LIST ALL TRANSACTIONS ---
+@app.route('/api/transactions', methods=['GET'])
+def list_transactions():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    limit = request.args.get('limit', 20, type=int)
+    cursor.execute('SELECT * FROM transactions ORDER BY date DESC LIMIT ?', (limit,))
+    txs = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({'transactions': txs})
+
 @app.route('/api/goals', methods=['GET', 'POST', 'DELETE'])
 def handle_goals():
     conn = get_db_connection()
@@ -463,12 +526,11 @@ def handle_goals():
         return jsonify({'success': True, 'message': f'Goal "{title}" created successfully.'})
         
     # GET: resolve live balances for linked goals
-    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget FROM accounts WHERE id = 1')
+    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget FROM accounts WHERE id = 1')
     acc = cursor.fetchone()
     liquid_savings = acc['liquid_savings'] if acc else 0.0
     spending_balance = acc['spending_balance'] if acc else 0.0
     stock_budget = acc['stock_investment_budget'] if acc else 0.0
-    dip_fund_budget = acc['dip_fund_budget'] if acc else 0.0
 
     # Live portfolio value
     cursor.execute('SELECT ticker, shares, avg_cost FROM portfolio')
@@ -479,13 +541,12 @@ def handle_goals():
         (1.0 if h['ticker'].endswith('.AX') else aud_usd_rate)
         for h in holdings
     )
-    net_worth = liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value
+    net_worth = liquid_savings + spending_balance + stock_budget + portfolio_value
 
     ACCOUNT_VALUES = {
         'savings': liquid_savings,
         'spending': spending_balance,
         'stock_budget': stock_budget,
-        'dip_fund': dip_fund_budget,
         'portfolio': portfolio_value,
         'net_worth': net_worth,
         'none': None
@@ -655,9 +716,9 @@ def handle_watchlist():
     cursor.execute('SELECT * FROM watchlist ORDER BY created_at DESC')
     items = [dict(r) for r in cursor.fetchall()]
     
-    cursor.execute('SELECT dip_fund_budget FROM accounts WHERE id = 1')
+    cursor.execute('SELECT stock_investment_budget FROM accounts WHERE id = 1')
     acc = cursor.fetchone()
-    dip_reserve = acc['dip_fund_budget'] if acc else 0.0
+    stock_budget = acc['stock_investment_budget'] if acc else 0.0
     conn.close()
 
     symbols = [item['ticker'] for item in items]
@@ -682,7 +743,7 @@ def handle_watchlist():
         if is_dip_triggered:
             active_dip_alerts_count += 1
 
-        suggested_buy_cash = round(dip_reserve * 0.25, 2) if is_dip_triggered and dip_reserve > 0 else 0.0
+        suggested_buy_cash = round(stock_budget * 0.25, 2) if is_dip_triggered and stock_budget > 0 else 0.0
 
         enriched_watchlist.append({
             'id': item['id'],
@@ -701,7 +762,7 @@ def handle_watchlist():
 
     return jsonify({
         'watchlist': enriched_watchlist,
-        'dip_reserve_balance': dip_reserve,
+        'stock_budget': stock_budget,
         'active_alerts': active_dip_alerts_count
     })
 
@@ -820,12 +881,11 @@ def get_dividend_tracker():
 def get_milestones():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget, dip_fund_budget FROM accounts WHERE id = 1')
+    cursor.execute('SELECT liquid_savings, spending_balance, stock_investment_budget FROM accounts WHERE id = 1')
     acc = cursor.fetchone()
     liquid_savings = acc['liquid_savings'] if acc else 0.0
     spending_balance = acc['spending_balance'] if acc else 0.0
     stock_budget = acc['stock_investment_budget'] if acc else 0.0
-    dip_fund_budget = acc['dip_fund_budget'] if acc else 0.0
 
     cursor.execute('SELECT ticker, shares, avg_cost FROM portfolio')
     holdings = [dict(row) for row in cursor.fetchall()]
@@ -837,7 +897,7 @@ def get_milestones():
         (1.0 if h['ticker'].endswith('.AX') else aud_usd_rate)
         for h in holdings
     )
-    current_net_worth = liquid_savings + spending_balance + stock_budget + dip_fund_budget + portfolio_value
+    current_net_worth = liquid_savings + spending_balance + stock_budget + portfolio_value
 
     TARGET_MILESTONES = [10000, 25000, 50000, 100000, 250000, 500000, 1000000]
     milestone_results = []

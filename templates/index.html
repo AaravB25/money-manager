@@ -131,20 +131,11 @@
 
                     <div class="card metric-card border-orange">
                         <div class="card-header">
-                            <span class="metric-title">Active Stock Budget</span>
-                            <span class="badge badge-warning">40% Split</span>
+                            <span class="metric-title">Stock Budget</span>
+                            <span class="badge badge-warning">50% Split</span>
                         </div>
                         <div class="metric-value" id="dash-stock-budget">$0.00</div>
                         <p class="metric-footer">For regular stock purchases</p>
-                    </div>
-
-                    <div class="card metric-card border-cyan">
-                        <div class="card-header">
-                            <span class="metric-title">Market Dip Reserve</span>
-                            <span class="badge badge-info">10% Split</span>
-                        </div>
-                        <div class="metric-value" id="dash-dip-budget">$0.00</div>
-                        <p class="metric-footer">Reserved to buy market dips</p>
                     </div>
                 </div>
 
@@ -309,15 +300,13 @@
                                     <select id="transfer-from" class="form-input">
                                         <option value="savings">Liquid Savings</option>
                                         <option value="spending">Spending Account</option>
-                                        <option value="stock_budget">Active Stock Budget</option>
-                                        <option value="dip_fund">Market Dip Reserve</option>
+                                        <option value="stock_budget">Stock Budget</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label for="transfer-to">To Account</label>
                                     <select id="transfer-to" class="form-input">
-                                        <option value="stock_budget">Active Stock Budget (Stake Buy)</option>
-                                        <option value="dip_fund">Market Dip Reserve</option>
+                                        <option value="stock_budget">Stock Budget</option>
                                         <option value="spending">Spending Account</option>
                                         <option value="savings">Liquid Savings</option>
                                     </select>
@@ -1061,8 +1050,7 @@
                         <option value="savings">Liquid Savings Account</option>
                         <option value="spending">Spending Account</option>
                         <option value="portfolio">Stock Portfolio Value</option>
-                        <option value="stock_budget">Active Stock Budget</option>
-                        <option value="dip_fund">Market Dip Reserve</option>
+                        <option value="stock_budget">Stock Budget</option>
                         <option value="net_worth">Total Net Worth</option>
                     </select>
                     <small class="form-hint">Linked goals always show your live account balance as progress.</small>

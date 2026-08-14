@@ -37,6 +37,20 @@ def init_db():
             VALUES (1, 0.0, 0.0, 0.0, 0.0)
         ''')
 
+    # Migrate: merge any existing dip_fund_budget into stock_investment_budget (one-time migration)
+    try:
+        cursor.execute("SELECT dip_fund_budget FROM accounts WHERE id = 1")
+        row = cursor.fetchone()
+        if row and row[0] and row[0] > 0:
+            cursor.execute('''
+                UPDATE accounts
+                SET stock_investment_budget = stock_investment_budget + dip_fund_budget,
+                    dip_fund_budget = 0.0
+                WHERE id = 1
+            ''')
+    except Exception:
+        pass
+
     # Settings table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
