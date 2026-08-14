@@ -1,6 +1,6 @@
 from db import get_db_connection
 
-def sync_spending_balance(new_balance, description="Spending Balance Sync"):
+def sync_spending_balance(new_balance, description="Spending Balance Sync", category="General", notes=""):
     """
     Directly sets the spending balance to `new_balance`.
     If new_balance < current_balance, records difference as spending expense.
@@ -19,9 +19,9 @@ def sync_spending_balance(new_balance, description="Spending Balance Sync"):
         # User spent diff amount
         expense_desc = description if description else "Spending Balance Adjustment"
         cursor.execute('''
-            INSERT INTO expenses (account_type, expense_type, amount, description)
-            VALUES ('spending', 'sync', ?, ?)
-        ''', (diff, expense_desc))
+            INSERT INTO expenses (account_type, expense_type, amount, description, category, notes)
+            VALUES ('spending', 'sync', ?, ?, ?, ?)
+        ''', (diff, expense_desc, category, notes))
         
         cursor.execute('''
             INSERT INTO transactions (type, amount, description)
@@ -45,7 +45,7 @@ def sync_spending_balance(new_balance, description="Spending Balance Sync"):
         'difference': diff
     }
 
-def quick_deduct_spending(amount, description="Quick Spending Expense"):
+def quick_deduct_spending(amount, description="Quick Spending Expense", category="General", notes=""):
     """
     Quickly deducts `amount` from spending account.
     """
@@ -63,9 +63,9 @@ def quick_deduct_spending(amount, description="Quick Spending Expense"):
     cursor.execute("UPDATE accounts SET spending_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
     
     cursor.execute('''
-        INSERT INTO expenses (account_type, expense_type, amount, description)
-        VALUES ('spending', 'preset', ?, ?)
-    ''', (amount, description))
+        INSERT INTO expenses (account_type, expense_type, amount, description, category, notes)
+        VALUES ('spending', 'preset', ?, ?, ?, ?)
+    ''', (amount, description, category, notes))
     
     cursor.execute('''
         INSERT INTO transactions (type, amount, description)
@@ -77,7 +77,7 @@ def quick_deduct_spending(amount, description="Quick Spending Expense"):
     
     return {'success': True, 'new_balance': new_balance, 'deducted': amount}
 
-def withdraw_from_savings(amount, description="Savings Withdrawal"):
+def withdraw_from_savings(amount, description="Savings Withdrawal", category="Savings", notes=""):
     """
     Deducts `amount` directly from Liquid Savings for emergency/major expenses.
     """
@@ -100,9 +100,9 @@ def withdraw_from_savings(amount, description="Savings Withdrawal"):
     cursor.execute("UPDATE accounts SET liquid_savings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_savings,))
     
     cursor.execute('''
-        INSERT INTO expenses (account_type, expense_type, amount, description)
-        VALUES ('savings', 'savings_withdrawal', ?, ?)
-    ''', (amount, description))
+        INSERT INTO expenses (account_type, expense_type, amount, description, category, notes)
+        VALUES ('savings', 'savings_withdrawal', ?, ?, ?, ?)
+    ''', (amount, description, category, notes))
     
     cursor.execute('''
         INSERT INTO transactions (type, amount, description)

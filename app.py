@@ -858,18 +858,9 @@ def handle_quick_expense():
     category = data.get('category', 'General')
     notes = data.get('notes', '')
 
-    # Use existing quick_deduct function
-    result = quick_deduct_spending(amount, description)
+    result = quick_deduct_spending(amount, description, category, notes)
     if not result.get('success'):
         return jsonify(result), 400
-
-    # Update the expense record with category and notes
-    if category != 'General' or notes:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE expenses SET category = ?, notes = ? WHERE id = (SELECT MAX(id) FROM expenses)", (category, notes))
-        conn.commit()
-        conn.close()
 
     return jsonify(result)
 
@@ -1045,22 +1036,31 @@ def undo_transaction(tx_id):
 
     if tx_type == 'INCOME':
         desc = tx['description']
-        spending = savings = stock = 0.0
-        m = re.search(r'Spending: \+\$([\d.]+)', desc)
-        if m: spending = float(m.group(1))
-        m = re.search(r'Savings: \+\$([\d.]+)', desc)
-        if m: savings = float(m.group(1))
-        m = re.search(r'Stock Budget: \+\$([\d.]+)', desc)
-        if m: stock = float(m.group(1))
+        if '[SIDE INCOME]' in desc:
+            amount = abs(tx['amount'])
+            if '-> spending' in desc:
+                cursor.execute("UPDATE accounts SET spending_balance = MAX(0, spending_balance - ?), updated_at = CURRENT_TIMESTAMP WHERE id = 1", (amount,))
+            elif '-> stock_budget' in desc:
+                cursor.execute("UPDATE accounts SET stock_investment_budget = MAX(0, stock_investment_budget - ?), updated_at = CURRENT_TIMESTAMP WHERE id = 1", (amount,))
+            else:
+                cursor.execute("UPDATE accounts SET liquid_savings = MAX(0, liquid_savings - ?), updated_at = CURRENT_TIMESTAMP WHERE id = 1", (amount,))
+        else:
+            spending = savings = stock = 0.0
+            m = re.search(r'Spending: \+\$([\d.]+)', desc)
+            if m: spending = float(m.group(1))
+            m = re.search(r'Savings: \+\$([\d.]+)', desc)
+            if m: savings = float(m.group(1))
+            m = re.search(r'Stock Budget: \+\$([\d.]+)', desc)
+            if m: stock = float(m.group(1))
 
-        cursor.execute('''
-            UPDATE accounts
-            SET liquid_savings = MAX(0, liquid_savings - ?),
-                spending_balance = MAX(0, spending_balance - ?),
-                stock_investment_budget = MAX(0, stock_investment_budget - ?),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = 1
-        ''', (savings, spending, stock))
+            cursor.execute('''
+                UPDATE accounts
+                SET liquid_savings = MAX(0, liquid_savings - ?),
+                    spending_balance = MAX(0, spending_balance - ?),
+                    stock_investment_budget = MAX(0, stock_investment_budget - ?),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            ''', (savings, spending, stock))
 
     elif tx_type == 'EXPENSE':
         cursor.execute('''

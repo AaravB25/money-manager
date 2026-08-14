@@ -169,6 +169,7 @@ def init_db():
         )
     ''')
     _safe_alter(cursor, "ALTER TABLE goals ADD COLUMN linked_account TEXT DEFAULT 'none'")
+    _safe_alter(cursor, "ALTER TABLE goals ADD COLUMN target_date TEXT")
 
     # ===== WATCHLIST =====
     cursor.execute('''
