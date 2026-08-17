@@ -1036,8 +1036,8 @@ def undo_transaction(tx_id):
 
     if tx_type == 'INCOME':
         desc = tx['description']
+        amount = abs(tx['amount'])
         if '[SIDE INCOME]' in desc:
-            amount = abs(tx['amount'])
             if '-> spending' in desc:
                 cursor.execute("UPDATE accounts SET spending_balance = MAX(0, spending_balance - ?), updated_at = CURRENT_TIMESTAMP WHERE id = 1", (amount,))
             elif '-> stock_budget' in desc:
@@ -1062,10 +1062,33 @@ def undo_transaction(tx_id):
                 WHERE id = 1
             ''', (savings, spending, stock))
 
+        # Delete corresponding income_logs entry so Monthly Cashflow, YTD, and Tax estimates update
+        cursor.execute('''
+            DELETE FROM income_logs 
+            WHERE id = (
+                SELECT id FROM income_logs 
+                WHERE amount = ? 
+                ORDER BY ABS(strftime('%s', date) - strftime('%s', ?)) ASC 
+                LIMIT 1
+            )
+        ''', (amount, tx['date']))
+
     elif tx_type == 'EXPENSE':
+        amount = abs(tx['amount'])
         cursor.execute('''
             UPDATE accounts SET spending_balance = spending_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1
-        ''', (abs(tx['amount']),))
+        ''', (amount,))
+
+        # Delete corresponding expenses entry so Monthly Cashflow and category totals update
+        cursor.execute('''
+            DELETE FROM expenses 
+            WHERE id = (
+                SELECT id FROM expenses 
+                WHERE amount = ? 
+                ORDER BY ABS(strftime('%s', date) - strftime('%s', ?)) ASC 
+                LIMIT 1
+            )
+        ''', (amount, tx['date']))
 
     else:
         conn.close()
