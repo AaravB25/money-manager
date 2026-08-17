@@ -746,10 +746,32 @@ def add_side_income():
 # ============================================================
 #  INCOME HISTORY
 # ============================================================
-@app.route('/api/income/history', methods=['GET'])
+@app.route('/api/income/history', methods=['GET', 'DELETE'])
 def income_history():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    if request.method == 'DELETE':
+        log_id = request.args.get('id', type=int)
+        adjust_balances = request.args.get('adjust_balances', 'false').lower() == 'true'
+        if log_id:
+            if adjust_balances:
+                cursor.execute("SELECT * FROM income_logs WHERE id = ?", (log_id,))
+                log = cursor.fetchone()
+                if log:
+                    cursor.execute('''
+                        UPDATE accounts
+                        SET spending_balance = MAX(0, spending_balance - ?),
+                            liquid_savings = MAX(0, liquid_savings - ?),
+                            stock_investment_budget = MAX(0, stock_investment_budget - ?),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = 1
+                    ''', (log['spending_amount'], log['savings_amount'], log['stock_allocation']))
+            cursor.execute("DELETE FROM income_logs WHERE id = ?", (log_id,))
+            conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+
     income_type = request.args.get('type', '')
     if income_type:
         cursor.execute("SELECT * FROM income_logs WHERE income_type = ? ORDER BY date DESC LIMIT 100", (income_type,))
@@ -877,10 +899,26 @@ def handle_savings_withdrawal():
         return jsonify(result), 400
     return jsonify(result)
 
-@app.route('/api/expenses/history', methods=['GET'])
+@app.route('/api/expenses/history', methods=['GET', 'DELETE'])
 def expense_history():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    if request.method == 'DELETE':
+        exp_id = request.args.get('id', type=int)
+        adjust_balances = request.args.get('adjust_balances', 'false').lower() == 'true'
+        if exp_id:
+            if adjust_balances:
+                cursor.execute("SELECT * FROM expenses WHERE id = ?", (exp_id,))
+                exp = cursor.fetchone()
+                if exp and exp['account_type'] == 'spending':
+                    cursor.execute("UPDATE accounts SET spending_balance = spending_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (exp['amount'],))
+                elif exp and exp['account_type'] == 'savings':
+                    cursor.execute("UPDATE accounts SET liquid_savings = liquid_savings + ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (exp['amount'],))
+            cursor.execute("DELETE FROM expenses WHERE id = ?", (exp_id,))
+            conn.commit()
+        conn.close()
+        return jsonify({'success': True})
 
     search = request.args.get('search', '')
     category = request.args.get('category', '')

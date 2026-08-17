@@ -651,7 +651,7 @@ async function loadIncomeHistory() {
         if (!tbody) return;
 
         if (!data.income_logs || data.income_logs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No income records logged yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No income records logged yet.</td></tr>';
             return;
         }
 
@@ -664,10 +664,30 @@ async function loadIncomeHistory() {
                 <td>$${log.spending_amount.toFixed(2)}</td>
                 <td>$${log.savings_amount.toFixed(2)}</td>
                 <td>$${log.stock_allocation.toFixed(2)}</td>
+                <td>
+                    <button class="btn btn-sm btn-danger" onclick="deleteIncomeLog(${log.id})" title="Delete income entry">&#x2715;</button>
+                </td>
             </tr>
         `).join('');
     } catch (err) {
         console.error('Failed to load income history:', err);
+    }
+}
+
+async function deleteIncomeLog(id) {
+    if (!confirm('Delete this income record from your history? (This will recalculate Monthly Cashflow and YTD totals)')) return;
+    try {
+        const res = await fetch(`/api/income/history?id=${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            await loadIncomeHistory();
+            await loadDashboard();
+            await loadTaxEstimate();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (err) {
+        alert('Failed to delete income log.');
     }
 }
 
@@ -952,7 +972,7 @@ async function loadExpenseHistory() {
         if (!tbody) return;
 
         if (!data.expenses || data.expenses.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No expenses found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No expenses found.</td></tr>';
             return;
         }
 
@@ -962,10 +982,31 @@ async function loadExpenseHistory() {
                 <td><strong>${e.description}</strong></td>
                 <td class="text-rose font-bold">-$${e.amount.toFixed(2)}</td>
                 <td><span class="badge badge-info">${e.category || 'General'}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-danger" onclick="deleteExpenseLog(${e.id})" title="Delete expense entry">&#x2715;</button>
+                </td>
             </tr>
         `).join('');
     } catch (err) {
         console.error('Failed to load expense history:', err);
+    }
+}
+
+async function deleteExpenseLog(id) {
+    if (!confirm('Delete this expense record from your history? (This will recalculate Monthly Cashflow and weekly pace)')) return;
+    try {
+        const res = await fetch(`/api/expenses/history?id=${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            await loadExpenseHistory();
+            await loadDashboard();
+            await renderExpensePieChart();
+            await loadWeeklySpendingPace();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (err) {
+        alert('Failed to delete expense log.');
     }
 }
 
